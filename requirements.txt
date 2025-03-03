@@ -1,0 +1,6 @@
+schwab-py>=1.4.0
+sqlalchemy
+pymysql
+pandas
+Flask==2.3.3
+python-dotenv==1.0.0

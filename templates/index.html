@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>자동 거래 관리 시스템</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+        .form-container {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        .table-container {
+            margin-top: 30px;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .editable-field {
+            width: 80px;
+            min-width: 70px;
+            max-width: 100px;
+            padding: 4px 6px;
+            height: 32px;
+        }
+        td {
+            vertical-align: middle;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="text-center mb-4">자동 거래 관리 시스템</h1>
+
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% for category, message in get_flashed_messages(with_categories=true) %}
+                <div class="alert alert-{{ category }}">{{ message }}</div>
+            {% endfor %}
+        </div>
+
+        <div class="row">
+            <!-- Account Form -->
+            <div class="col-md-6">
+                <div class="form-container">
+                    <h3>계정 추가</h3>
+                    <form action="{{ url_for('add_account') }}" method="post">
+                        <div class="mb-3">
+                            <label for="user_id" class="form-label">사용자 ID</label>
+                            <input type="text" class="form-control" id="user_id" name="user_id" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_number" class="form-label">계좌번호</label>
+                            <input type="text" class="form-control" id="account_number" name="account_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">설명</label>
+                            <input type="text" class="form-control" id="description" name="description" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">계정 추가</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Trading Rule Form -->
+            <div class="col-md-6">
+                <div class="form-container">
+                    <h3>거래 규칙 추가</h3>
+                    <form action="{{ url_for('add_trading_rule') }}" method="post">
+                        <div class="mb-3">
+                            <label for="account_id" class="form-label">계정 선택</label>
+                            <select class="form-select" id="account_id" name="account_id" required>
+                                <option value="">계정을 선택하세요</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}">{{ account.id }} - {{ account.description }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">종목 심볼</label>
+                            <input type="text" class="form-control" id="symbol" name="symbol" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="trade_action" class="form-label">액션 선택</label>
+                            <select class="form-select" id="trade_action" name="trade_action" required>
+                                <option value="">액션을 선택하세요</option>
+                                <option value="1">BUY</option>
+                                <option value="0">SELL</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="limit_price" class="form-label">한계 가격</label>
+                            <input type="number" step="0.01" class="form-control" id="limit_price" name="limit_price" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="target_amount" class="form-label">목표 수량</label>
+                            <input type="number" class="form-control" id="target_amount" name="target_amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="daily_money" class="form-label">일일 투자금</label>
+                            <input type="number" step="0.01" class="form-control" id="daily_money" name="daily_money" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">거래 규칙 추가</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <!-- Account Table -->
+        <div class="table-container">
+            <h3>계정 목록</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>사용자 ID</th>
+                        <th>계좌번호</th>
+                        <th>설명</th>
+                        <th>최종 업데이트</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for account in accounts %}
+                    <tr>
+                        <td>{{ account.id }}</td>
+                        <td>{{ account.user_id }}</td>
+                        <td>{{ account.account_number }}</td>
+                        <td>{{ account.description }}</td>
+                        <td>{{ account.last_updated }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Trading Rules Table -->
+        <div class="table-container">
+            <h3>거래 규칙 목록</h3>
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>계정</th>
+                        <th>종목</th>
+                        <th>한계 가격</th>
+                        <th>목표 수량</th>
+                        <th>투자 액션</th>
+                        <th>일일 투자금</th>
+                        <th>상태</th>
+                        <th>평균 매수가</th>
+                        <th>보유 수량</th>
+                        <th>종가</th>
+                        <th>작업</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for rule in trading_rules %}
+                    <tr>
+                        <td>{{ rule.id }}</td>
+                        <td>{{ rule.account_id }} - {{ rule.account_description }}</td>
+                        <td>{{ rule.symbol }}</td>
+                        <td>
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_price') }}" method="post" class="d-inline">
+                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.limit_price }}" onchange="this.form.submit()" title="한계 가격">
+                            </form>
+                        </td>
+                        <td>
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}" method="post" class="d-inline">
+                                <input type="number" class="form-control form-control-sm editable-field" name="value" value="{{ rule.target_amount }}" onchange="this.form.submit()" title="목표 수량">
+                            </form>
+                        </td>
+                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{% else %}{{ rule.trade_action }}{% endif %}</td>
+                        <td>
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}" method="post" class="d-inline">
+                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" onchange="this.form.submit()" title="일일 투자금">
+                            </form>
+                        </td>
+                        <td>
+                            <span class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% else %}secondary{% endif %}">
+                                {{ rule.status }}
+                            </span>
+                        </td>
+                        <td>{{ rule.average_price }}</td>
+                        <td>{{ rule.current_holding }}</td>
+                        <td>{{ rule.last_price }}</td>
+                        <td>
+                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post" class="d-inline">
+                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    <option value="">상태변경</option>
+                                    <option value="ACTIVE">ACTIVE</option>
+                                    <option value="COMPLETED">COMPLETED</option>
+                                    <option value="CANCELLED">CANCELLED</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

@@ -34,7 +34,7 @@ class DatabaseHandler:
     def get_active_trading_rules(self) -> List[Dict]:
         """활성화된 모든 거래 규칙 조회"""
         sql = """
-            SELECT r.*, a.user_id, a.hash_value 
+            SELECT r.*, a.user_id, a.hash_value, a.description 
             FROM trading_rules r
             JOIN accounts a ON r.account_id = a.id
             WHERE r.status = 'ACTIVE'

@@ -120,9 +120,6 @@ class SchwabManager:
             return client.place_order(
                 hash_value,
                 equity_sell_market(symbol, quantity)
-                .set_duration(Duration.DAY)
-                .set_session(Session.SEAMLESS)
-                .build()
             )
         except Exception as e:
             self.logger.error(f"Failed to place sell order: {str(e)}")

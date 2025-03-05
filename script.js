@@ -9,13 +9,15 @@ const { exec } = require("child_process");
 const { promisify } = require("util");
 const execPromise = promisify(exec);
 
-const app = express();
+// 로거 모듈 가져오기
+const logger = require('./logger');
 
 // Global variables
 let authorizationCode;
 let accessToken;
 let refreshToken;
 let server = null;
+let app = express();
 const takeScreenshots = false; // Set to true to enable screenshots
 
 // Function to get all userIds from USER_AUTH_CONFIGS
@@ -46,14 +48,14 @@ print(json.dumps(user_ids))
 
     return JSON.parse(stdout.trim());
   } catch (error) {
-    console.error("Error reading Python userIds:", error);
+    logger.error(`Error reading Python userIds: ${error}`);
     throw error;
   }
 }
 
 // Function to read USER_AUTH_CONFIGS from Python file
 async function getUserAuthConfig(userId) {
-  console.log(`getUserAuthConfig 함수 실행: 사용자 ID = "${userId}"`);
+  logger.info(`getUserAuthConfig 함수 실행: 사용자 ID = "${userId}"`);
   try {
     // 따옴표 문제를 해결하기 위해 Python 코드를 파일로 저장하고 실행
     const tempScriptPath = path.join(__dirname, 'temp_get_config.py');
@@ -92,13 +94,14 @@ print(json.dumps({
 
     return JSON.parse(stdout.trim());
   } catch (error) {
-    console.error("Error reading Python credentials:", error);
+    logger.error(`Error reading Python credentials: ${error}`);
     throw error;
   }
 }
 
 // Start the HTTPS server
 function startServer(userId, redirectUri) {
+  logger.info(`start server for USER: ${userId}`);
   return new Promise((resolve, reject) => {
     const httpsOptions = {
       key: fs.readFileSync("server-key.pem"),
@@ -128,13 +131,13 @@ function startServer(userId, redirectUri) {
 
     // Start the server
     server.listen(8182, () => {
-      console.log("Express server is listening on port 8182");
+      logger.info(`Express server is listening on port 8182 for ${userId}`);
     });
 
     // Set a timeout to close the server after 60 seconds if no authorization code is received
     setTimeout(() => {
       if (!authorizationCode) {
-        console.log("Timeout: No authorization code received. Shutting down the server.");
+        logger.warn("Timeout: No authorization code received. Shutting down the server.");
         server.close(() => resolve(null));
       }
     }, 60000);
@@ -159,20 +162,20 @@ async function getAuthToken(userId, redirectUri) {
       data: `grant_type=authorization_code&code=${authorizationCode}&redirect_uri=${redirectUri}`,
     });
 
-    console.log("*** GOT NEW AUTH TOKEN ***");
+    logger.info("*** GOT NEW AUTH TOKEN ***");
 
     // Log the refresh_token and access_token before exiting
     accessToken = response.data.access_token;
     refreshToken = response.data.refresh_token;
-    console.log("Access Token:", accessToken);
-    console.log("Refresh Token:", refreshToken);
+    logger.info(`Access Token: ${accessToken}`);
+    logger.info(`Refresh Token: ${refreshToken}`);
 
     // Save tokens to the specified path
     saveTokensToFile(userId, response.data);
 
     return response.data;
   } catch (error) {
-    console.error("Error fetching auth token:", error);
+    logger.error(`Error fetching auth token: ${error}`);
     throw error;
   }
 }
@@ -197,13 +200,13 @@ function saveTokensToFile(userId, tokenData) {
   }, null, 2);
 
   fs.writeFileSync(tokenFilePath, tokenContent);
-  console.log(`Tokens saved to ${tokenFilePath}`);
+  logger.info(`Tokens saved to ${tokenFilePath}`);
 }
 
 // Function to automate the login process using Puppeteer
 async function automateLogin(config) {
   const browser = await puppeteer.launch({
-    headless: false, // May need to set to false in the future to avoid automation detection
+    headless: true, // May need to set to false in the future to avoid automation detection
     ignoreHTTPSErrors: true,
     args: [
       "--no-sandbox",
@@ -229,120 +232,97 @@ async function automateLogin(config) {
       { waitUntil: "load" }
     );
 
-    // Conditionally take a screenshot after loading the page
-    if (takeScreenshots) await page.screenshot({ path: "login-page.png" });
-    console.log("Navigation to login page successful.");
+    logger.info("Navigation to login page successful.");
 
     // Wait for the login ID input field to be visible
     await page.waitForSelector("#loginIdInput", { visible: true });
-    console.log("Login ID input is visible.");
+    logger.info("Login ID input is visible.");
 
     // Wait for the password input field to be visible
     await page.waitForSelector("#passwordInput", { visible: true });
-    console.log("Password input is visible.");
+    logger.info("Password input is visible.");
 
     // Fill in the login ID with a slower typing speed
     await page.type("#loginIdInput", config.username, { delay: 100 });
-    console.log("Login ID entered.");
+    logger.info("Login ID entered.");
 
     // Fill in the password with a slower typing speed
     await page.type("#passwordInput", config.password, { delay: 100 });
-    console.log("Password entered.");
-
-    // Conditionally take a screenshot after filling in the form
-    if (takeScreenshots) await page.screenshot({ path: "filled-form.png" });
+    logger.info("Password entered.");
 
     // Click the login button
     await page.click("#btnLogin");
-    console.log("Login button clicked.");
+    logger.info("Login button clicked.");
 
     // Wait for navigation to the terms acceptance page
     await page.waitForNavigation({ waitUntil: "load" });
-    console.log("Navigation to terms page successful.");
-
-    // Conditionally take a screenshot after navigating to the terms page
-    if (takeScreenshots) await page.screenshot({ path: "terms-page.png" });
+    logger.info("Navigation to terms page successful.");
 
     // Wait for the terms checkbox to be visible
     await page.waitForSelector("#acceptTerms", { visible: true });
-    console.log("Terms checkbox is visible.");
+    logger.info("Terms checkbox is visible.");
 
     // Check the terms checkbox
     await page.click("#acceptTerms");
-    console.log("Terms checkbox clicked.");
+    logger.info("Terms checkbox clicked.");
 
-    // Conditionally take a screenshot after checking the checkbox
-    if (takeScreenshots) await page.screenshot({ path: "terms-checkbox.png" });
-
+    await page.waitForSelector("#submit-btn", { visible: true });
     // Click the "Continue" button
     await page.click("#submit-btn");
-    console.log("Continue button clicked.");
+    logger.info("Continue button clicked.");
 
     // Wait for the modal dialog to appear
     await page.waitForSelector("#agree-modal-btn-", { visible: true });
-    console.log("Modal dialog is visible.");
-
-    // Conditionally take a screenshot of the modal
-    if (takeScreenshots) await page.screenshot({ path: "modal-dialog.png" });
+    logger.info("Modal dialog is visible.");
 
     // Click the "Accept" button in the modal
     await page.click("#agree-modal-btn-");
-    console.log("Modal 'Accept' button clicked.");
+    logger.info("Modal 'Accept' button clicked.");
 
     // Wait for navigation to the accounts page
     await page.waitForNavigation({ waitUntil: "load" });
-    console.log("Navigation to accounts page successful.");
+    logger.info("Navigation to accounts page successful.");
 
     // Wait for checkbox's to appear
     await page.waitForSelector("input[type='checkbox']", { visible: true });
-
-    // Conditionally take a screenshot after navigating to accounts page
-    if (takeScreenshots) await page.screenshot({ path: "accounts-page.png" });
 
     // Make sure all accounts are checked (if they aren't by default)
     const accountsChecked = await page.$eval("input[type='checkbox']", (checkbox) => checkbox.checked);
     if (!accountsChecked) {
       await page.click("input[type='checkbox']");
-      console.log("Account checkbox clicked.");
+      logger.info("Account checkbox clicked.");
     } else {
-      console.log("Account checkbox was already checked.");
+      logger.info("Account checkbox was already checked.");
     }
 
-    // Conditionally take a screenshot after ensuring accounts are checked
-    if (takeScreenshots) await page.screenshot({ path: "accounts-checked.png" });
-
     // Click the "Continue" button on the accounts page
+    await page.waitForSelector("#submit-btn", { visible: true });
     await page.click("#submit-btn");
-    console.log("Continue button clicked on accounts page.");
+    logger.info("Continue button clicked on accounts page.");
 
     // Wait for navigation to the confirmation page
     await page.waitForNavigation({ waitUntil: "load" });
-    console.log("Navigation to confirmation page successful.");
-
-    // Conditionally take a screenshot after navigating to the confirmation page
-    if (takeScreenshots) await page.screenshot({ path: "confirmation-page.png" });
+    logger.info("Navigation to confirmation page successful.");
 
     // Click the "Done" button on the confirmation page
+    await page.waitForSelector("#cancel-btn", { visible: true });
     await page.click("#cancel-btn");
-    console.log("Done button clicked.");
+    logger.info("Done button clicked.");
 
     // Wait for the final redirect to your HTTPS server
     await page.waitForNavigation({ waitUntil: "load" });
-    console.log("Redirect to HTTPS server successful.");
+    logger.info("Redirect to HTTPS server successful.");
 
-    // Conditionally take a screenshot after the final redirect
-    if (takeScreenshots) await page.screenshot({ path: "final-redirect.png" });
-
-    console.log("Puppeteer automation completed.");
+    logger.info("Puppeteer automation completed.");
   } catch (error) {
-    console.error("Error during automation:", error);
+    logger.error(`Error during automation: ${error}`);
   } finally {
     await browser.close();
   }
 }
 
 async function refreshAuthToken(userId) {
-  console.log("*** REFRESHING ACCESS TOKEN ***");
+  logger.info("*** REFRESHING ACCESS TOKEN ***");
 
   const { clientId, clientSecret } = await getUserAuthConfig(userId);
 
@@ -363,21 +343,21 @@ async function refreshAuthToken(userId) {
     // Log the new refresh_token and access_token
     accessToken = response.data.access_token;
     refreshToken = response.data.refresh_token;
-    console.log("New Refresh Token:", response.data.refresh_token);
-    console.log("New Access Token:", response.data.access_token);
+    logger.info(`New Refresh Token: ${response.data.refresh_token}`);
+    logger.info(`New Access Token: ${response.data.access_token}`);
 
     // Save updated tokens to file
     saveTokensToFile(userId, response.data);
 
     return response.data;
   } catch (error) {
-    console.error("Error refreshing auth token:", error.response ? error.response.data : error.message);
+    logger.error(`Error refreshing auth token: ${error.response ? error.response.data : error.message}`);
     throw error;
   }
 }
 
 async function getAccounts() {
-  console.log("*** API TEST CALL: ACCOUNTS ***");
+  logger.info("*** API TEST CALL: ACCOUNTS ***");
 
   const res = await axios({
     method: "GET",
@@ -389,28 +369,32 @@ async function getAccounts() {
     },
   });
 
-  console.log(res.data);
+  logger.info(JSON.stringify(res.data, null, 2));
 }
+
 // 서버 종료 함수 추가
 function closeServer() {
   return new Promise((resolve) => {
     if (server && server.listening) {
-      console.log("Closing the server...");
+      logger.info("Closing the server...");
       server.close(() => {
-        console.log("Server closed successfully");
+        logger.info("Server closed successfully");
+        app = express(); // 새로운 Express 앱 인스턴스 생성
         resolve();
       });
     } else {
-      console.log("Server was not running");
+      logger.info("Server was not running");
+      app = express();
       resolve();
     }
   });
 }
+
 // Function to process a single user
 async function processUser(userId) {
-  console.log(`\n=========================================`);
-  console.log(`PROCESSING USER: ${userId}`);
-  console.log(`=========================================\n`);
+  logger.info(`\n=========================================`);
+  logger.info(`PROCESSING USER: ${userId}`);
+  logger.info(`=========================================\n`);
 
   try {
     // Get auth configuration for the specified userId
@@ -426,7 +410,7 @@ async function processUser(userId) {
     const tokens = await serverPromise;
     await closeServer();
     if (tokens) {
-      console.log(`Authorization process completed successfully for ${userId}.`);
+      logger.info(`Authorization process completed successfully for ${userId}.`);
 
       // Test api with new accessToken
       await getAccounts();
@@ -439,11 +423,11 @@ async function processUser(userId) {
 
       return true;
     } else {
-      console.log(`No tokens received within the timeout period for ${userId}.`);
+      logger.warn(`No tokens received within the timeout period for ${userId}.`);
       return false;
     }
   } catch (error) {
-    console.error(`Error processing user ${userId}:`, error);
+    logger.error(`Error processing user ${userId}: ${error}`);
     await closeServer();
     return false;
   }
@@ -451,26 +435,28 @@ async function processUser(userId) {
 
 // Main function to coordinate the server and Puppeteer for all users
 async function main() {
+  logger.info("Starting Schwab authentication script");
+
   // Get all userIds from USER_AUTH_CONFIGS
   const userIds = await getAllUserIds();
 
   if (userIds.length === 0) {
-    console.error("No users found in USER_AUTH_CONFIGS");
+    logger.error("No users found in USER_AUTH_CONFIGS");
     process.exit(1);
   }
 
-  console.log(`Found ${userIds.length} users: ${userIds.join(', ')}`);
+  logger.info(`Found ${userIds.length} users: ${userIds.join(', ')}`);
 
   // Optional: filter users from command line arguments
   let usersToProcess = userIds;
   if (process.argv.length >= 3) {
     const requestedUsers = process.argv.slice(2);
     usersToProcess = userIds.filter(id => requestedUsers.includes(id));
-    console.log(`Processing only requested users: ${usersToProcess.join(', ')}`);
+    logger.info(`Processing only requested users: ${usersToProcess.join(', ')}`);
   }
 
   if (usersToProcess.length === 0) {
-    console.error("No matching users found to process");
+    logger.error("No matching users found to process");
     process.exit(1);
   }
 
@@ -481,22 +467,22 @@ async function main() {
   }
 
   // Summary report
-  console.log("\n=========================================");
-  console.log("AUTHENTICATION SUMMARY");
-  console.log("=========================================");
+  logger.info("\n=========================================");
+  logger.info("AUTHENTICATION SUMMARY");
+  logger.info("=========================================");
 
   for (const [id, success] of Object.entries(results)) {
-    console.log(`${id}: ${success ? 'SUCCESS' : 'FAILED'}`);
+    logger.info(`${id}: ${success ? 'SUCCESS' : 'FAILED'}`);
   }
 
   const successCount = Object.values(results).filter(Boolean).length;
-  console.log(`\nCompleted: ${successCount}/${usersToProcess.length} users processed successfully`);
+  logger.info(`\nCompleted: ${successCount}/${usersToProcess.length} users processed successfully`);
 
   process.exit();
 }
 
 // Run the main function
 main().catch(error => {
-  console.error("Fatal error in main process:", error);
+  logger.error(`Fatal error in main process: ${error}`);
   process.exit(1);
 });

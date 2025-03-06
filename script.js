@@ -191,12 +191,16 @@ function saveTokensToFile(userId, tokenData) {
   // Save tokens to file
   const tokenFilePath = path.join(tokensDir, `schwab_token_${userId}.json`);
   const tokenContent = JSON.stringify({
-    access_token: tokenData.access_token,
-    refresh_token: tokenData.refresh_token,
-    expires_in: tokenData.expires_in,
-    scope: tokenData.scope,
-    token_type: tokenData.token_type,
-    timestamp: new Date().toISOString()
+    "creation_timestamp": Math.floor(Date.now() / 1000), // 현재 시간을 Unix 타임스탬프로
+    "token": {
+      "expires_in": tokenData.expires_in,
+      "token_type": tokenData.token_type,
+      "scope": tokenData.scope || "api",
+      "refresh_token": tokenData.refresh_token,
+      "access_token": tokenData.access_token,
+      "id_token": tokenData.id_token || "",
+      "expires_at": Math.floor(Date.now() / 1000) + tokenData.expires_in // 만료 시간 계산
+    }
   }, null, 2);
 
   fs.writeFileSync(tokenFilePath, tokenContent);

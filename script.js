@@ -140,7 +140,7 @@ function startServer(userId, redirectUri) {
         logger.warn("Timeout: No authorization code received. Shutting down the server.");
         server.close(() => resolve(null));
       }
-    }, 60000);
+    }, 300000);
   });
 }
 
@@ -414,7 +414,7 @@ async function processUser(userId) {
 
     // Wait for the server to finish (either timeout or successful authorization)
     const tokens = await serverPromise;
-    await closeServer();
+
     if (tokens) {
       logger.info(`Authorization process completed successfully for ${userId}.`);
 
@@ -426,10 +426,11 @@ async function processUser(userId) {
 
       // Test api with refreshed accessToken
       await getAccounts();
-
+      await closeServer();
       return true;
     } else {
       logger.warn(`No tokens received within the timeout period for ${userId}.`);
+      await closeServer();
       return false;
     }
   } catch (error) {

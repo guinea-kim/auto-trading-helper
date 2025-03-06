@@ -48,7 +48,7 @@ def setup_logger(name, log_folder='log', level=logging.INFO):
     console_handler.setFormatter(formatter)
 
     # 핸들러 추가
-    logger.addHandler(file_handler)
+    #logger.addHandler(file_handler)
     logger.addHandler(console_handler)
 
     return logger

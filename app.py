@@ -7,19 +7,24 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", secret.app_secret)
 
 # DB Handler 인스턴스 생성
-db_handler = DatabaseHandler()
+us_db_handler = DatabaseHandler(secret.db_name)
+kr_db_handler = DatabaseHandler(secret.db_name_kr)
 
 
 # Routes
 @app.route('/')
 def index():
-    # Get all accounts
-    accounts = db_handler.get_accounts()
+    market = request.args.get('market', 'us')  # 기본값 'us', 한국은 'kr'
+    current_db_handler = us_db_handler if market == 'us' else kr_db_handler
 
-    # Get all trading rules
-    trading_rules = db_handler.get_trading_rules()
+    # 데이터 가져오기
+    accounts = current_db_handler.get_accounts()
+    trading_rules = current_db_handler.get_trading_rules()
 
-    return render_template('index.html', accounts=accounts, trading_rules=trading_rules)
+    return render_template('index.html',
+                           accounts=accounts,
+                           trading_rules=trading_rules,
+                           current_market=market)
 
 
 @app.route('/account/add', methods=['POST'])
@@ -28,87 +33,139 @@ def add_account():
         user_id = request.form.get('user_id')
         description = request.form.get('description')
         account_number = request.form.get('account_number')
-
+        market = request.form.get('market', 'us')
+        current_db_handler = us_db_handler if market == 'us' else kr_db_handler
         if not user_id or not account_number:
             flash("User ID and account number are required", "danger")
-            return redirect(url_for('index'))
+            return redirect(url_for('index', market=market))
 
         try:
             # Generate unique ID (you can modify this logic)
-            account_id = db_handler.generate_account_id(user_id)
-            db_handler.add_account(account_id, user_id, account_number, description)
+            account_id = current_db_handler.generate_account_id(user_id)
+            current_db_handler.add_account(account_id, user_id, account_number, description)
 
             flash("Account added successfully!", "success")
         except Exception as e:
             flash(f"Error: {e}", "danger")
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', market=market))
 
 
 @app.route('/rule/add', methods=['POST'])
 def add_trading_rule():
     if request.method == 'POST':
+        market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+        current_db_handler = us_db_handler if market == 'us' else kr_db_handler
         account_id = request.form.get('account_id')
         symbol = request.form.get('symbol')
+        if market == 'kr':
+            stock_name = request.form.get('stock_name')
+        else:
+            stock_name = None
+
         limit_price = request.form.get('limit_price')
         target_amount = request.form.get('target_amount')
         daily_money = request.form.get('daily_money')
         trade_action = request.form.get('trade_action')
-        # Validate inputs
-        if not all([account_id, symbol, limit_price, target_amount, daily_money, trade_action]):
-            flash("All fields are required", "danger")
-            return redirect(url_for('index'))
+
+        required_fields = ['account_id', 'symbol', 'limit_price', 'target_amount', 'daily_money', 'trade_action']
+
+        # validate field
+        missing_fields = [field for field in required_fields if not request.form.get(field)]
+        if missing_fields:
+            flash(f"Missing required fields: {', '.join(missing_fields)}", "danger")
+            return redirect(url_for('index', market=market))
 
         try:
             # Insert trading rule using DB handler
-            db_handler.add_trading_rule(
-                account_id,
-                symbol,
-                float(limit_price),
-                int(target_amount),
-                float(daily_money),
-                trade_action
-            )
+            if market == 'kr':
+                current_db_handler.add_kr_trading_rule(
+                    account_id,
+                    symbol,
+                    stock_name,
+                    int(limit_price),
+                    int(target_amount),
+                    int(daily_money),
+                    trade_action
+                )
+            else:
+                current_db_handler.add_trading_rule(
+                    account_id,
+                    symbol,
+                    float(limit_price),
+                    int(target_amount),
+                    float(daily_money),
+                    trade_action
+                )
 
             flash("Trading rule added successfully!", "success")
         except Exception as e:
             flash(f"Error: {e}", "danger")
 
-        return redirect(url_for('index'))
+        return redirect(url_for('index', market=market))
 
+
+@app.route('/account/update_contribution', methods=['POST'])
+def update_account_contribution():
+    """계정의 기여금 업데이트"""
+    if request.method == 'POST':
+        account_id = request.form.get('account_id')
+        contribution = request.form.get('contribution')
+        market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+        current_db_handler = us_db_handler if market == 'us' else kr_db_handler
+        if not account_id or not contribution:
+            flash("계정 ID와 기여금이 필요합니다", "danger")
+            return redirect(url_for('index'))
+
+        try:
+            # 기여금을 부동소수점으로 변환
+            contribution_value = float(contribution)
+
+            # DB 핸들러를 통해 기여금 업데이트
+            current_db_handler.update_account_contribution(account_id, contribution_value)
+
+            flash(f"계정 {account_id}의 기여금이 성공적으로 업데이트되었습니다!", "success")
+        except ValueError:
+            flash("기여금은 유효한 숫자여야 합니다", "danger")
+        except Exception as e:
+            flash(f"오류: {str(e)}", "danger")
+
+        return redirect(url_for('index', market=market))
 
 @app.route('/rule/update/<int:rule_id>', methods=['POST'])
 def update_rule_status(rule_id):
     status = request.form.get('status')
-
+    market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+    current_db_handler = us_db_handler if market == 'us' else kr_db_handler
     if not status:
         flash("Status is required", "danger")
-        return redirect(url_for('index'))
+        return redirect(url_for('index', market=market))
 
     try:
         # Update rule status using DB handler
-        db_handler.update_rule_status(rule_id, status)
+        current_db_handler.update_rule_status(rule_id, status)
 
         flash("Trading rule status updated successfully!", "success")
     except Exception as e:
         flash(f"Error: {e}", "danger")
 
-    return redirect(url_for('index'))
+    return redirect(url_for('index', market=market))
 
 
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):
     value = request.form.get('value')
-
+    market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+    current_db_handler = us_db_handler if market == 'us' else kr_db_handler
     if not value:
         flash(f"{field} value is required", "danger")
-        return redirect(url_for('index'))
+        return redirect(url_for('index', market=market))
 
     try:
         # 필드 유효성 검사
         if field not in ['limit_price', 'target_amount', 'daily_money']:
             flash("Invalid field to update", "danger")
-            return redirect(url_for('index'))
+            return redirect(url_for('index', market=market))
 
         # 데이터 유효성 검사 및 변환
         if field == 'limit_price':
@@ -119,7 +176,7 @@ def update_rule_field(rule_id, field):
             value = float(value)
 
         # DB 핸들러를 통해 필드 업데이트
-        db_handler.update_rule_field(rule_id, field, value)
+        current_db_handler.update_rule_field(rule_id, field, value)
 
         flash(f"Trading rule {field} updated successfully!", "success")
     except ValueError:
@@ -127,7 +184,7 @@ def update_rule_field(rule_id, field):
     except Exception as e:
         flash(f"Error: {e}", "danger")
 
-    return redirect(url_for('index'))
+    return redirect(url_for('index', market=market))
 
 if __name__ == '__main__':
     app.run(debug=True)

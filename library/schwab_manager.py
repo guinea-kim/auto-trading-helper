@@ -1,5 +1,6 @@
 from http import HTTPStatus
 from pathlib import Path
+from zoneinfo import ZoneInfo
 import logging
 from datetime import datetime
 import json
@@ -26,6 +27,9 @@ class SchwabManager:
 
         lib_dir = Path(__file__).parent
         self.token_path = str(lib_dir / 'tokens' / f'schwab_token_{user_id}.json')
+        self.today_open = None
+        self.start_time = None
+        self.end_time = None
 
     def get_client(self):
         """Get or create Schwab client with user-specific authentication"""
@@ -56,8 +60,51 @@ class SchwabManager:
             accounts[account['accountNumber']] = account['hashValue']
         return accounts
     def get_market_hours(self):
-        client = self.get_client()
-        return client.get_market_hours(Client.MarketHours.Market.EQUITY)
+        now = datetime.now()
+
+        if now.weekday() >= 5:  # 주말
+            self.logger.info("Market is closed (weekend)")
+            return False
+
+        current_time = now.time()
+        default_market_open = datetime.strptime("06:30", "%H:%M").time()
+        default_market_close = datetime.strptime("13:00", "%H:%M").time()
+
+        if not (default_market_open <= current_time < default_market_close):
+            self.logger.info(f"Market is closed (outside trading hours): current time is {current_time}")
+            return False
+
+        if self.today_open is None:
+            client = self.get_client()
+            data = client.get_market_hours(Client.MarketHours.Market.EQUITY)
+
+            if data.status_code == HTTPStatus.OK:
+                market_hours = json.loads(data.content)
+                equity_data = market_hours.get('equity', {}).get('EQ', {})
+
+                if not equity_data.get('isOpen', False):
+                    self.today_open = False
+                    return self.today_open
+
+                # 정규장 시간 파싱
+                session_hours = equity_data.get('sessionHours', {})
+                regular_market = session_hours.get('regularMarket', [])
+
+                if regular_market:
+                    # 첫 번째 정규장 세션 사용 (보통 하나만 있음)
+                    session = regular_market[0]
+
+                    # 시작 시간과 종료 시간 파싱 (이미 ISO 형식으로 되어 있음)
+                    start_time_et = datetime.fromisoformat(session['start'])
+                    end_time_et = datetime.fromisoformat(session['end'])
+
+                    # ET를 PT로 변환 (tzinfo가 이미 설정되어 있으므로 단순히 변환만 수행)
+                    self.start_time = start_time_et.astimezone(ZoneInfo("America/Los_Angeles"))
+                    self.end_time = end_time_et.astimezone(ZoneInfo("America/Los_Angeles"))
+        if self.today_open:
+            # 현재 시간이 시작 시간과 종료 시간 사이인지 확인
+            return self.start_time <= now < self.end_time
+        return False
 
 
     def get_positions(self, hash_value: str) -> Dict[str, float]:
@@ -104,7 +151,13 @@ class SchwabManager:
         resp = client.get_account(hash_value)
         data = json.loads(resp.content)
         return data["securitiesAccount"]["currentBalances"]["cashAvailableForTrading"]
+    def get_account_result(self, hash_value: str) -> float:
+        """Get available cash balance"""
+        client = self.get_client()
 
+        resp = client.get_account(hash_value)
+        data = json.loads(resp.content)
+        return data["securitiesAccount"]["currentBalances"]["cashAvailableForTrading"], data["aggregatedBalance"]["currentLiquidationValue"]
     def get_last_price(self, symbol: str) -> float:
         """Get current price for a symbol"""
         client = self.get_client()

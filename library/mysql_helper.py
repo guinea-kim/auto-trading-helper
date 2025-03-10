@@ -5,8 +5,8 @@ from typing import List, Dict, Optional
 import decimal
 pymysql.install_as_MySQLdb()
 class DatabaseHandler:
-    def __init__(self):
-        self.db_name = secret.db_name
+    def __init__(self, db_name):
+        self.db_name = db_name
         self.setup_db_names()
 
 
@@ -112,6 +112,48 @@ class DatabaseHandler:
                 "account_number": account_number
             })
             conn.commit()
+
+    def update_account_cash_balance(self, account_id: str, cash_balance: float) -> None:
+        """계정의 예수금 업데이트"""
+        sql = """
+            UPDATE accounts 
+            SET cash_balance = :cash_balance 
+            WHERE id = :account_id
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "cash_balance": cash_balance,
+                "account_id": account_id
+            })
+            conn.commit()
+
+    def update_account_contribution(self, account_id: str, contribution: float) -> None:
+        """계정의 기여금 업데이트"""
+        sql = """
+            UPDATE accounts 
+            SET contribution = :contribution 
+            WHERE id = :account_id
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "contribution": contribution,
+                "account_id": account_id
+            })
+            conn.commit()
+
+    def update_account_total_value(self, account_id: str, total_value: float) -> None:
+        """계정의 계좌총액 업데이트"""
+        sql = """
+            UPDATE accounts 
+            SET total_value = :total_value 
+            WHERE id = :account_id
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "total_value": total_value,
+                "account_id": account_id
+            })
+            conn.commit()
     def update_rule_status(self, rule_id: int, status: str) -> None:
         """거래 규칙 상태 업데이트"""
         sql = """
@@ -193,6 +235,26 @@ class DatabaseHandler:
             })
             conn.commit()
 
+    def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str,
+                            limit_price: int, target_amount: int,
+                            daily_money: int, trade_action: str) -> None:
+        """한국주식 거래 규칙 추가"""
+        sql = """
+            INSERT INTO trading_rules 
+            (account_id, symbol, stock_name, limit_price, target_amount, daily_money, trade_action)
+            VALUES (:account_id, :symbol, :stock_name, :limit_price, :target_amount, :daily_money, :trade_action)
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "account_id": account_id,
+                "symbol": symbol,
+                "stock_name": stock_name,
+                "limit_price": limit_price,
+                "target_amount": target_amount,
+                "daily_money": daily_money,
+                "trade_action": trade_action
+            })
+            conn.commit()
     def get_trading_rules(self) -> List[Dict]:
         """모든 거래 규칙 조회 (계정 설명 포함)"""
         sql = """

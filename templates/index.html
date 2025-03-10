@@ -29,6 +29,17 @@
             padding: 4px 6px;
             height: 32px;
         }
+        .positive-profit {
+            color: #198754;
+            font-weight: bold;
+        }
+        .negative-profit {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .input-group-sm {
+            max-width: 150px;
+        }
         td {
             vertical-align: middle;
         }
@@ -44,13 +55,23 @@
                 <div class="alert alert-{{ category }}">{{ message }}</div>
             {% endfor %}
         </div>
-
+        <div class="market-selector mb-4">
+            <ul class="nav nav-tabs">
+                <li class="nav-item">
+                    <a class="nav-link {% if current_market == 'us' %}active{% endif %}" href="?market=us">미국 주식</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link {% if current_market == 'kr' %}active{% endif %}" href="?market=kr">한국 주식</a>
+                </li>
+            </ul>
+        </div>
         <div class="row">
             <!-- Account Form -->
             <div class="col-md-6">
                 <div class="form-container">
                     <h3>계정 추가</h3>
                     <form action="{{ url_for('add_account') }}" method="post">
+                        <input type="hidden" name="market" value="{{ current_market }}">
                         <div class="mb-3">
                             <label for="user_id" class="form-label">사용자 ID</label>
                             <input type="text" class="form-control" id="user_id" name="user_id" required>
@@ -73,6 +94,7 @@
                 <div class="form-container">
                     <h3>거래 규칙 추가</h3>
                     <form action="{{ url_for('add_trading_rule') }}" method="post">
+                        <input type="hidden" name="market" value="{{ current_market }}">
                         <div class="mb-3">
                             <label for="account_id" class="form-label">계정 선택</label>
                             <select class="form-select" id="account_id" name="account_id" required>
@@ -83,9 +105,17 @@
                             </select>
                         </div>
                         <div class="mb-3">
-                            <label for="symbol" class="form-label">종목 심볼</label>
+                            <label for="symbol" class="form-label">Symbol</label>
                             <input type="text" class="form-control" id="symbol" name="symbol" required>
                         </div>
+                        {% if current_market == 'kr' %}
+                        <div class="mb-3">
+                            <label for="stock_name" class="form-label">종목명</label>
+                            <input type="text" class="form-control" id="stock_name" name="stock_name" required>
+                        </div>
+                        {% else %}
+
+                        {% endif %}
                         <div class="mb-3">
                             <label for="trade_action" class="form-label">액션 선택</label>
                             <select class="form-select" id="trade_action" name="trade_action" required>
@@ -122,6 +152,10 @@
                         <th>사용자 ID</th>
                         <th>계좌번호</th>
                         <th>설명</th>
+                        <th>예수금</th>
+                        <th>계좌총액</th>
+                        <th>기여금</th>
+                        <th>수익률</th>
                         <th>최종 업데이트</th>
                     </tr>
                 </thead>
@@ -132,6 +166,28 @@
                         <td>{{ account.user_id }}</td>
                         <td>{{ account.account_number }}</td>
                         <td>{{ account.description }}</td>
+                        <td>{{ "${:,.2f}".format(account.cash_balance|float) if account.cash_balance else "$0" }}</td>
+                        <td>{{ "${:,.2f}".format(account.total_value|float) if account.total_value else "$0.00" }}</td>
+                        <td>
+                            <form action="{{ url_for('update_account_contribution') }}" method="post" class="d-inline">
+                                <div class="input-group input-group-sm">
+                                    <input type="hidden" name="market" value="{{ current_market }}">
+                                    <input type="hidden" name="account_id" value="{{ account.id }}">
+                                    <input type="number" step="0.01" class="form-control" name="contribution" value="{{ account.contribution|float|default(0, true) }}">
+                                    <button type="submit" class="btn btn-sm btn-outline-primary">저장</button>
+                                </div>
+                            </form>
+                        </td>
+                        <td>
+                            {% if account.contribution and account.contribution > 0 and account.total_value %}
+                                {% set profit_percent = ((account.total_value - account.contribution) / account.contribution * 100)|float %}
+                                <span class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                    {{ "{:.2f}%".format(profit_percent) }}
+                                </span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
                         <td>{{ account.last_updated }}</td>
                     </tr>
                     {% endfor %}
@@ -147,7 +203,12 @@
                     <tr>
                         <th>ID</th>
                         <th>계정</th>
+                        {% if current_market == 'kr' %}
+                        <th>종목코드</th>
+                        <th>종목명</th>
+                        {% else %}
                         <th>종목</th>
+                        {% endif %}
                         <th>한계 가격</th>
                         <th>목표 수량</th>
                         <th>투자 액션</th>
@@ -156,6 +217,7 @@
                         <th>평균 매수가</th>
                         <th>보유 수량</th>
                         <th>종가</th>
+                        <th>수익률</th>
                         <th>작업</th>
                     </tr>
                 </thead>
@@ -165,20 +227,27 @@
                         <td>{{ rule.id }}</td>
                         <td>{{ rule.account_id }} - {{ rule.account_description }}</td>
                         <td>{{ rule.symbol }}</td>
+                        {% if current_market == 'kr' %}
+                        <td>{{ rule.stock_name }}</td>
+                        {% else %}
+                        {% endif %}
                         <td>
                             <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_price') }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.limit_price }}" onchange="this.form.submit()" title="한계 가격">
                             </form>
                         </td>
                         <td>
                             <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="number" class="form-control form-control-sm editable-field" name="value" value="{{ rule.target_amount }}" onchange="this.form.submit()" title="목표 수량">
                             </form>
                         </td>
                         <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{% else %}{{ rule.trade_action }}{% endif %}</td>
                         <td>
                             <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}" method="post" class="d-inline">
-                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" onchange="this.form.submit()" title="일일 투자금">
+                                <input type="hidden" name="market" value="{{ current_market }}">
+                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" onchange="this.form.submit()" title="일일 투자금" style="width: 100%;">
                             </form>
                         </td>
                         <td>
@@ -190,7 +259,18 @@
                         <td>{{ rule.current_holding }}</td>
                         <td>{{ rule.last_price }}</td>
                         <td>
+                            {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
+                                {% set profit_percent = ((rule.last_price - rule.average_price) / rule.average_price * 100)|float %}
+                                <span class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                    {{ "{:.2f}%".format(profit_percent) }}
+                                </span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
                             <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
                                 <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                     <option value="">상태변경</option>
                                     <option value="ACTIVE">ACTIVE</option>

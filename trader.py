@@ -1,53 +1,48 @@
 import multiprocess as mp
-from library.schwab_manager import SchwabManager
 from datetime import datetime
 import time
-from zoneinfo import ZoneInfo
-from library.mysql_helper import DatabaseHandler
-import json
-from schwab.utils import Utils
-from http import HTTPStatus
 from enum import IntEnum
 from library.logger_config import setup_logger
 from library.alert import SendMessage
-
-
+import argparse
+from strategies.schwab_strategy import SchwabMarketStrategy
+from strategies.korea_strategy import KoreaMarketStrategy
 class OrderType(IntEnum):
     SELL = 0
     BUY = 1
 
-
 class TradingSystem:
-    def __init__(self):
-        self.db_handler = DatabaseHandler()
-        self.schwab_managers = {}  # {user_id: UserAuthManager}
+    def __init__(self, market_strategy):
+        self.market_strategy = market_strategy
+        self.db_handler = market_strategy.get_db_handler()
+        self.managers = {}  # {user_id: UserAuthManager}
         self.positions_by_account = {}  # {account_id: {symbol: quantity}}
         self.positions_result_by_account = {}
         self._market_hours = None
         self.logger = setup_logger("trading_system", "log")
 
-    def get_schwab_manager(self, user_id: str) -> SchwabManager:
-        """Get or create user-specific Schwab manager"""
-        if user_id not in self.schwab_managers:
-            self.schwab_managers[user_id] = SchwabManager(user_id)
-        return self.schwab_managers[user_id]
+    def get_manager(self, user_id: str):
+        """Get or create user-specific manager for the market"""
+        if user_id not in self.managers:
+            self.managers[user_id] = self.market_strategy.get_manager(user_id)
+        return self.managers[user_id]
 
-    def get_any_schwab_manager(self) -> SchwabManager:
-        if not self.schwab_managers:
-            raise ValueError("No Schwab managers available")
+    def get_any_manager(self):
+        if not self.managers:
+            raise ValueError("No managers available")
 
-        first_user_id = next(iter(self.schwab_managers))
-        return self.schwab_managers[first_user_id]
+        first_user_id = next(iter(self.managers))
+        return self.managers[first_user_id]
 
     def load_daily_positions(self, user_id: str):
         """하루 시작할 때 포지션 로드"""
         self.logger.info(f"Loading daily positions for user {user_id}")
-        schwab = self.get_schwab_manager(user_id)
+        manager = self.get_manager(user_id)
         try:
-            account_hashs = schwab.get_hashs()
+            account_hashs = manager.get_hashs()
             for account_number, hash_value in account_hashs.items():
                 self.db_handler.update_account_hash(account_number, hash_value)
-                positions = schwab.get_positions(hash_value)
+                positions = manager.get_positions(hash_value)
                 self.positions_by_account[hash_value] = {
                     symbol: quantity
                     for symbol, quantity in positions.items()
@@ -58,11 +53,11 @@ class TradingSystem:
 
     def get_positions(self, user_id: str):
         self.logger.info(f"Getting current positions for user {user_id}")
-        schwab = self.get_schwab_manager(user_id)
+        manager = self.get_manager(user_id)
         try:
             hash_list = self.db_handler.get_hash_value(user_id)
             for hash_value in hash_list:
-                positions = schwab.get_positions_result(hash_value)
+                positions = manager.get_positions_result(hash_value)
                 self.positions_result_by_account[hash_value] = {
                     symbol: data
                     for symbol, data in positions.items()
@@ -73,14 +68,15 @@ class TradingSystem:
 
     def place_buy_order(self, rule: dict, quantity: int, price: float):
         self.logger.info(f"Placing buy order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
-        schwab = self.get_schwab_manager(rule['user_id'])
+        manager = self.get_manager(rule['user_id'])
         try:
-            order = schwab.place_limit_buy_order(rule['hash_value'], rule['symbol'], quantity, price)
+            order = manager.place_limit_buy_order(rule['hash_value'], rule['symbol'], quantity, price)
             if order.is_success:
                 self.positions_by_account[rule['hash_value']][rule['symbol']] = (
                         self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) + quantity
                 )
-                order_id = Utils(schwab, rule['hash_value']).extract_order_id(order)
+                order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
+
                 self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price,
                                              'BUY')
 
@@ -98,14 +94,15 @@ class TradingSystem:
 
     def place_sell_order(self, rule: dict, quantity: int, price: float):
         self.logger.info(f"Placing sell order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
-        schwab = self.get_schwab_manager(rule['user_id'])
+        manager = self.get_manager(rule['user_id'])
         try:
-            order = schwab.place_limit_sell_order(rule['hash_value'], rule['symbol'], quantity, price)
+            order = manager.place_limit_sell_order(rule['hash_value'], rule['symbol'], quantity, price)
             if order.is_success:
                 self.positions_by_account[rule['hash_value']][rule['symbol']] = (
                         self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) - quantity
                 )
-                order_id = Utils(schwab, rule['hash_value']).extract_order_id(order)
+                order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
+
                 self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price,
                                              'SELL')
 
@@ -167,67 +164,15 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     """
         return message
 
-    def _update_market_hours(self, now) -> None:
-        """Schwab API를 통해 market hours 업데이트"""
+    def is_market_open(self) -> bool:
+        return False
         try:
-            # EQUITY 마켓 시간 조회
-            schwab = self.get_any_schwab_manager()
-            data = schwab.get_market_hours()
-            if data.status_code == HTTPStatus.OK:
-                market_hours = json.loads(data.content)
-                equity_data = market_hours.get('equity', {}).get('EQ', {})
+            manager = self.get_any_manager()
+            return manager.get_market_hours()
 
-                if not equity_data.get('isOpen', False):
-                    self._market_hours = False
-                    return
-
-                # 정규장 시간 파싱
-                session_hours = equity_data.get('sessionHours', {})
-                regular_market = session_hours.get('regularMarket', [])
-
-                if regular_market:
-                    # 첫 번째 정규장 세션 사용 (보통 하나만 있음)
-                    session = regular_market[0]
-
-                    # 시작 시간과 종료 시간 파싱 (이미 ISO 형식으로 되어 있음)
-                    start_time_et = datetime.fromisoformat(session['start'])
-                    end_time_et = datetime.fromisoformat(session['end'])
-
-                    # ET를 PT로 변환 (tzinfo가 이미 설정되어 있으므로 단순히 변환만 수행)
-                    start_time_pt = start_time_et.astimezone(ZoneInfo("America/Los_Angeles"))
-                    end_time_pt = end_time_et.astimezone(ZoneInfo("America/Los_Angeles"))
-
-                    # 현재 시간이 시작 시간과 종료 시간 사이인지 확인
-                    self._market_hours = start_time_pt <= now < end_time_pt
         except Exception as e:
             self.logger.error(f"Error updating market hours: {str(e)}")
-            self._market_hours = None
-
-    def is_market_open(self) -> bool:
-        now = datetime.now(ZoneInfo("America/Los_Angeles"))
-
-        # market hours 정보가 없으면 기본 시간 체크
-        if now.weekday() >= 5:  # 주말
-            self.logger.info("Market is closed (weekend)")
-            return False
-
-        # 날짜가 바뀌었으면 market hours 업데이트
-        if self._market_hours is None:
-            self._update_market_hours(now)
-
-        # market hours 정보가 있으면 그것을 사용
-        if self._market_hours is not None:
-            return self._market_hours
-
-        current_time = now.time()
-        default_market_open = datetime.strptime("06:30", "%H:%M").time()
-        default_market_close = datetime.strptime("13:00", "%H:%M").time()
-
-        if not (default_market_open <= current_time < default_market_close):
-            self.logger.info(f"Market is closed (outside trading hours): current time is {current_time}")
-            return False
-
-        return True
+            return True
 
     def process_trading_rules(self):
         """모든 유저의 모든 계좌의 거래 규칙 처리"""
@@ -245,15 +190,15 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             try:
                 for rule in rules:
                     symbol = rule['symbol']
-                    schwab = self.get_schwab_manager(rule['user_id'])
-                    last_price = schwab.get_last_price(symbol)
+                    manager = self.get_manager(rule['user_id'])
+                    last_price = manager.get_last_price(symbol)
                     self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
                     if action == OrderType.BUY and last_price <= rule['limit_price']:
                         self.logger.info(
                             f"Buy condition met for {symbol}: price ${last_price} <= limit ${rule['limit_price']}")
-                        self.buy_stock(schwab, rule, last_price)
+                        self.buy_stock(manager, rule, last_price)
                     elif action == OrderType.SELL and last_price >= rule['limit_price']:
                         self.logger.info(
                             f"Sell condition met for {symbol}: price ${last_price} >= limit ${rule['limit_price']}")
@@ -272,6 +217,50 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
     def update_result(self, rules, users):
         for user in users:
             self.get_positions(user)
+            # Get accounts for this user and update cash balances
+            accounts = self.db_handler.get_user_accounts(user)
+            # Get manager for this user
+            manager = self.get_manager(user)
+
+            for account in accounts:
+                account_id = account['id']
+                hash_value = account['hash_value']
+
+                # Skip accounts with missing hash value
+                if not hash_value:
+                    self.logger.warning(f"No hash value for account {account_id}, skipping cash update")
+                    continue
+
+                try:
+                    # Get current cash balance (현금 예수금)
+                    cash_balance, total_value = manager.get_account_result(hash_value)
+
+                    # 계산: 예수금총액 = 예수금 + (BIL, SGOV)의 평가금액
+                    total_cash_balance = cash_balance
+
+                    # BIL, SGOV 평가금액 추가 (해당 종목이 있을 경우)
+                    etfs_to_include = ['BIL', 'SGOV']
+
+                    if hash_value in self.positions_result_by_account:
+                        for etf in etfs_to_include:
+                            if etf in self.positions_result_by_account[hash_value]:
+                                etf_data = self.positions_result_by_account[hash_value][etf]
+                                etf_quantity = float(etf_data['quantity'])
+                                etf_price = float(etf_data['last_price'])
+                                etf_value = etf_quantity * etf_price
+
+                                self.logger.info(
+                                    f"Account {account_id}: {etf} value = ${etf_value:.2f} ({etf_quantity} shares @ ${etf_price:.2f})")
+                                total_cash_balance += etf_value
+
+                    # Update in database
+                    self.logger.info(
+                        f"Updating cash balance for account {account_id}: ${total_cash_balance:.2f} (Cash: ${cash_balance:.2f} + ETFs)")
+                    self.db_handler.update_account_cash_balance(account_id, total_cash_balance)
+                    self.db_handler.update_account_total_value(account_id, total_value)
+
+                except Exception as e:
+                    self.logger.error(f"Error updating cash balance for account {account_id}: {str(e)}")
 
         for rule in rules:
             rule_id = rule['id']
@@ -314,7 +303,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     f"Rule {rule['id']} completed after selling {max_shares} shares. New holding: {current_holding - max_shares}")
                 self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
 
-    def buy_stock(self, schwab, rule, last_price):
+    def buy_stock(self, manager, rule, last_price):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         today_trading_quantity = self.db_handler.get_trade_today(rule['id'])
 
@@ -331,21 +320,21 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return
 
         required_cash = max_shares * last_price
-        current_cash = schwab.get_cash(rule['hash_value'])
+        current_cash = manager.get_cash(rule['hash_value'])
         self.logger.info(
             f"Buy attempt for {rule['symbol']}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
 
         # 돈이 부족하면 채권매도 시도
         if required_cash > current_cash:
             self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
-            order = schwab.sell_etf_for_cash(
+            order = manager.sell_etf_for_cash(
                 rule['hash_value'],
                 required_cash - current_cash,
                 self.positions_by_account[rule['hash_value']]
             )
             if order.is_success:
                 self.logger.info("ETF sold successfully for cash")
-                current_cash = schwab.get_cash(rule['hash_value'])
+                current_cash = manager.get_cash(rule['hash_value'])
             else:
                 self.logger.warning("Failed to sell ETF for cash")
 
@@ -364,7 +353,21 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
 
 if __name__ == "__main__":
-    mp.freeze_support()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Automated Trading System')
+    parser.add_argument('--market', choices=['schwab', 'korea'], default='schwab',
+                        help='Market to trade on (schwab or korea)')
+    args = parser.parse_args()
 
-    trading_system = TradingSystem()
+    # Create the appropriate market strategy
+    if args.market.lower() == 'korea':
+        market_strategy = KoreaMarketStrategy()
+    else:
+        market_strategy = SchwabMarketStrategy()
+
+    # Initialize trading system with the selected strategy
+    trading_system = TradingSystem(market_strategy)
+
+    # Start trading
+    mp.freeze_support()
     trading_system.process_trading_rules()

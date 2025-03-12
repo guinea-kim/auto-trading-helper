@@ -52,6 +52,24 @@ class DatabaseHandler:
                         row_dict[key] = float(value)
                 rows.append(row_dict)
             return rows
+    def get_all_trading_rules(self) -> List[Dict]:
+        """활성화된 모든 거래 규칙 조회"""
+        sql = """
+            SELECT r.*, a.user_id, a.hash_value, a.description 
+            FROM trading_rules r
+            JOIN accounts a ON r.account_id = a.id
+        """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql))
+            rows = []
+            for row in result:
+                row_dict = dict(row._mapping)
+                # Decimal 타입 필드들을 float으로 변환
+                for key, value in row_dict.items():
+                    if isinstance(value, decimal.Decimal):
+                        row_dict[key] = float(value)
+                rows.append(row_dict)
+            return rows
     def get_accounts(self):
         sql = """
         SELECT * FROM accounts ORDER BY id

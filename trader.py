@@ -72,6 +72,10 @@ class TradingSystem:
         try:
             order = manager.place_limit_buy_order(rule['hash_value'], rule['symbol'], quantity, price)
             if order.is_success:
+                # 매매 성공 알림 메시지 생성 및 전송
+                alert_msg = self._create_buy_alert_message(rule, quantity, price)
+                SendMessage(alert_msg)
+
                 self.positions_by_account[rule['hash_value']][rule['symbol']] = (
                         self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) + quantity
                 )
@@ -79,10 +83,6 @@ class TradingSystem:
 
                 self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price,
                                              'BUY')
-
-                # 매매 성공 알림 메시지 생성 및 전송
-                alert_msg = self._create_buy_alert_message(rule, quantity, price)
-                SendMessage(alert_msg)
                 self.logger.info(f"Buy order placed successfully: {order_id}")
                 return True
             else:
@@ -165,7 +165,6 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         return message
 
     def is_market_open(self) -> bool:
-        return False
         try:
             manager = self.get_any_manager()
             return manager.get_market_hours()
@@ -183,11 +182,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         for user in users:
             self.load_daily_positions(user)
 
-        rules = self.db_handler.get_active_trading_rules()
-        self.logger.info(f"Loaded {len(rules)} active trading rules")
-
         while self.is_market_open():
             try:
+                rules = self.db_handler.get_active_trading_rules()
+                self.logger.info(f"Loaded {len(rules)} active trading rules")
+
                 for rule in rules:
                     symbol = rule['symbol']
                     manager = self.get_manager(rule['user_id'])
@@ -212,9 +211,9 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         # update current_holding, last_price
         self.logger.info("Market closed. Updating final positions and prices.")
-        self.update_result(rules, users)
+        self.update_result(users)
 
-    def update_result(self, rules, users):
+    def update_result(self, users):
         for user in users:
             self.get_positions(user)
             # Get accounts for this user and update cash balances
@@ -261,7 +260,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
                 except Exception as e:
                     self.logger.error(f"Error updating cash balance for account {account_id}: {str(e)}")
-
+        rules = self.db_handler.get_all_trading_rules()
         for rule in rules:
             rule_id = rule['id']
             hash_value = rule['hash_value']

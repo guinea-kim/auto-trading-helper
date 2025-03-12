@@ -60,7 +60,7 @@ class SchwabManager:
             accounts[account['accountNumber']] = account['hashValue']
         return accounts
     def get_market_hours(self):
-        now = datetime.now()
+        now = datetime.now(ZoneInfo("America/Los_Angeles"))
 
         if now.weekday() >= 5:  # 주말
             self.logger.info("Market is closed (weekend)")
@@ -85,7 +85,7 @@ class SchwabManager:
                 if not equity_data.get('isOpen', False):
                     self.today_open = False
                     return self.today_open
-
+                self.today_open = True
                 # 정규장 시간 파싱
                 session_hours = equity_data.get('sessionHours', {})
                 regular_market = session_hours.get('regularMarket', [])

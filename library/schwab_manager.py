@@ -212,7 +212,7 @@ class SchwabManager:
             return False
     def sell_etf_for_cash(self, hash_value: str, required_cash: float, positions: Dict[str, float]) -> Optional[float]:
         """Sell SGOV or BIL to get required cash"""
-        etfs_to_sell = ['SGOV', 'BIL']
+        etfs_to_sell = ['BIL', 'SGOV']
 
         for etf in etfs_to_sell:
             if etf in positions and positions[etf] > 0:

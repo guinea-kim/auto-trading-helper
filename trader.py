@@ -269,6 +269,8 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             if hash_value not in self.positions_result_by_account or symbol not in self.positions_result_by_account[
                 hash_value]:
                 self.logger.warning(f"No position data for rule {rule_id}, symbol {symbol}, hash {hash_value}")
+                last_price = self.get_any_manager().get_last_price(symbol)
+                self.db_handler.update_current_price_quantity(rule_id, last_price, 0, 0)
                 continue
 
             current_holding = self.positions_result_by_account[hash_value].get(symbol)['quantity']

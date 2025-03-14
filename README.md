@@ -89,12 +89,13 @@ These certificates will allow your local HTTPS server to run securely. Note that
 Starting the Server and Running Puppeteer Automation
 1. install node.js
 
-```conda install -c conda-forge nodejs```
-
+```conda install -c conda-forge nodejs=22.13.0```
+* for mac m1,m2 install .pkg of arm64 nodejs 
 2. Install Dependencies: Run the following command to install all required dependencies:
 
 ```npm install```
-
+```npx puppeteer browsers install chrome```
+``` npm i puppeteer --puppeteer-product=chrome --puppeteer-platform=mac --puppeteer-arch=arm64```
 3. Run the Project: Start the project with the following command from the terminal:
 
 ```npm start```

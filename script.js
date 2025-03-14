@@ -8,7 +8,7 @@ const path = require("path");
 const { exec } = require("child_process");
 const { promisify } = require("util");
 const execPromise = promisify(exec);
-
+const process = require('process');
 // 로거 모듈 가져오기
 const logger = require('./logger');
 
@@ -226,7 +226,7 @@ async function automateLogin(config) {
 
   if (process.platform === 'darwin'){
     await page.setUserAgent(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36"
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"
     );
   }
   else {

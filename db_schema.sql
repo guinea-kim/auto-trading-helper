@@ -45,6 +45,15 @@ CREATE TABLE trade_history (
 
 CREATE INDEX idx_trading_rules_account_status ON trading_rules(account_id, status);
 
+CREATE TABLE helper_db.daily_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    record_date DATE,
+    account_id VARCHAR(20),
+    symbol VARCHAR(10),
+    amount DECIMAL(18, 2),
+    UNIQUE KEY (record_date, account_id, symbol)
+);
+
 -------------kr
 CREATE DATABASE IF NOT EXISTS helper_kr_db;
 USE helper_kr_db;
@@ -88,3 +97,12 @@ CREATE TABLE helper_kr_db.trade_history (
     trade_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_trading_rules_account_status ON helper_kr_db.trading_rules(account_id, status);
+
+CREATE TABLE helper_kr_db.daily_records (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    record_date DATE,
+    account_id VARCHAR(20),
+    symbol VARCHAR(6),
+    amount DECIMAL(18, 2),
+    UNIQUE KEY (record_date, account_id, symbol)
+);

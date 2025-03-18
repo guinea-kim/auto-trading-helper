@@ -273,13 +273,48 @@ class DatabaseHandler:
                 "trade_action": trade_action
             })
             conn.commit()
+    def add_daily_result(self, today, account_id, cash_balance, total_value, etfs):
+        sql = """
+                    INSERT INTO daily_records 
+                    (record_date, account_id, symbol, amount)
+                    VALUES (:today, :account_id, :symbol, :amount)
+                """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "today": today,
+                "account_id": account_id,
+                "symbol": "cash",
+                "amount": cash_balance
+            })
+            conn.commit()
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "today": today,
+                "account_id": account_id,
+                "symbol": "total",
+                "amount": total_value
+            })
+            conn.commit()
+        for etf in etfs:
+            etf_data = etfs[etf]
+            etf_quantity = float(etf_data['quantity'])
+            etf_price = float(etf_data['last_price'])
+            etf_value = etf_quantity * etf_price
+            with self.engine.connect() as conn:
+                conn.execute(text(sql), {
+                    "today": today,
+                    "account_id": account_id,
+                    "symbol": etf,
+                    "amount": etf_value
+                })
+                conn.commit()
     def get_trading_rules(self) -> List[Dict]:
         """모든 거래 규칙 조회 (계정 설명 포함)"""
         sql = """
             SELECT tr.*, a.description as account_description 
             FROM trading_rules tr 
             JOIN accounts a ON tr.account_id = a.id 
-            ORDER BY tr.account_id, id
+            ORDER BY tr.status, tr.account_id
         """
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))

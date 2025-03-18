@@ -94,6 +94,10 @@ Starting the Server and Running Puppeteer Automation
 2. Install Dependencies: Run the following command to install all required dependencies:
 
 ```npm install```
+
+2-1. trouble shooting for
+```Error: Could not find Chrome (ver. 134.0.6998.35). ```
+
 ```npx puppeteer browsers install chrome```
 ``` npm i puppeteer --puppeteer-product=chrome --puppeteer-platform=mac --puppeteer-arch=arm64```
 3. Run the Project: Start the project with the following command from the terminal:

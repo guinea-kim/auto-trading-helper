@@ -214,6 +214,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.update_result(users)
 
     def update_result(self, users):
+        today = datetime.now().strftime('%Y%m%d')
         for user in users:
             self.get_positions(user)
             # Get accounts for this user and update cash balances
@@ -234,6 +235,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     # Get current cash balance (현금 예수금)
                     cash_balance, total_value = manager.get_account_result(hash_value)
 
+                    self.db_handler.add_daily_result(today, account_id, cash_balance, total_value, self.positions_result_by_account[hash_value])
                     # 계산: 예수금총액 = 예수금 + (BIL, SGOV)의 평가금액
                     total_cash_balance = cash_balance
 

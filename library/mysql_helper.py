@@ -97,7 +97,7 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql), {"rule_id": rule_id})
             row = result.fetchone()
-            return row.total_quantity if row and row.total_quantity is not None else 0
+            return int(row.total_quantity) if row and row.total_quantity is not None else 0
     def record_trade(self, account_id: str, rule_id: int, order_id:str, symbol: str,
                      quantity: int, price: float, trade_type: str) -> None:
         """거래 이력 기록"""

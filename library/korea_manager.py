@@ -1,4 +1,5 @@
 from pathlib import Path
+from types import SimpleNamespace
 from zoneinfo import ZoneInfo
 import logging
 from datetime import datetime
@@ -349,8 +350,10 @@ class KoreaManager:
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
 
             order = res.json()['output']
-
-            return {"is_success": True}
+            OrderInfo = SimpleNamespace(**{
+                "is_success": True
+            })
+            return OrderInfo
         else:
             print("Error Code : " + str(res.status_code) + " | " + res.text)
             return False
@@ -369,10 +372,10 @@ class KoreaManager:
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             order = res.json()['output']
-            OrderInfo = {
-                "is_success":True,
+            OrderInfo = SimpleNamespace(**{
+                "is_success": True,
                 "order_id": order['ODNO']
-            }
+            })
             return OrderInfo
         else:
             return False
@@ -389,10 +392,10 @@ class KoreaManager:
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             order = res.json()['output']
-            OrderInfo = {
+            OrderInfo = SimpleNamespace(**{
                 "is_success": True,
                 "order_id": order['ODNO']
-            }
+            })
             return OrderInfo
         else:
             return False

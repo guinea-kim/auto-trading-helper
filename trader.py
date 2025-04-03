@@ -34,20 +34,39 @@ class TradingSystem:
         first_user_id = next(iter(self.managers))
         return self.managers[first_user_id]
 
-    def load_daily_positions(self, user_id: str):
-        """하루 시작할 때 포지션 로드"""
+    def load_daily_positions(self, user_id: str, max_retries: int = 3, retry_delay: float = 2.0):
+        """하루 시작할 때 포지션 로드, 실패 시 재시도 로직 포함"""
         self.logger.info(f"Loading daily positions for user {user_id}")
         manager = self.get_manager(user_id)
+
         try:
             account_hashs = manager.get_hashs()
             for account_number, hash_value in account_hashs.items():
                 self.db_handler.update_account_hash(account_number, hash_value)
-                positions = manager.get_positions(hash_value)
-                self.positions_by_account[hash_value] = {
-                    symbol: quantity
-                    for symbol, quantity in positions.items()
-                }
-                self.logger.info(f"Loaded positions for account {account_number}: {positions}")
+
+                # 재시도 로직 적용
+                retry_count = 0
+                while retry_count < max_retries:
+                    try:
+                        positions = manager.get_positions(hash_value)
+                        self.positions_by_account[hash_value] = {
+                            symbol: quantity
+                            for symbol, quantity in positions.items()
+                        }
+                        self.logger.info(f"Loaded positions for account {account_number}: {positions}")
+                        break  # 성공하면 반복문 종료
+                    except Exception as e:
+                        retry_count += 1
+                        if retry_count < max_retries:
+                            self.logger.warning(
+                                f"Error loading positions for account {account_number} "
+                                f"(retry {retry_count}/{max_retries}): error: {str(e)}"
+                            )
+                            # 재시도 전 딜레이 적용 (지수 백오프 적용)
+                            import time
+                            time.sleep(retry_delay * (2 ** (retry_count - 1)))
+                        else:
+                            raise
         except Exception as e:
             self.logger.error(f"Error loading positions for user {user_id}: {str(e)}")
 

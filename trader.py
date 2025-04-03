@@ -308,8 +308,8 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         # 매도할 최대 수량 계산
         max_shares = min(
-            int(rule['daily_money'] / last_price) - today_trading_quantity,
-            current_holding - rule['target_amount']
+            int(rule['daily_money'] / last_price) - int(today_trading_quantity),
+            int(current_holding) - int(rule['target_amount'])
         )
 
         if max_shares <= 0:
@@ -331,7 +331,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
         # 매수할 최대 수량 계산
         max_shares = min(
-            int(rule['daily_money'] / last_price) - today_trading_quantity,
+            int(rule['daily_money'] / last_price) - int(today_trading_quantity),
             int(rule['target_amount']) - int(current_holding)
         )
 

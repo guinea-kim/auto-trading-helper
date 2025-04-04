@@ -248,29 +248,25 @@ class KoreaManager:
         return positions
     def get_cash(self, account: str) -> float:
         time.sleep(0.2)
-        PATH = "uapi/domestic-stock/v1/trading/inquire-balance"
+        PATH = "uapi/domestic-stock/v1/trading/inquire-psbl-order"
         URL = f"{secret.KR_REAL_URL}/{PATH}"
 
-        headers = self._get_base_headers("TTTC8434R", include_custtype=True)
+        headers = self._get_base_headers("TTTC8908R", include_custtype=True)
         params = {
             "CANO": account,
             "ACNT_PRDT_CD" : self.product,
-            "AFHR_FLPR_YN" : "N",
-            "OFL_YN": "",
-            "INQR_DVSN": "02",
-            "UNPR_DVSN": "01",
-            "FUND_STTL_ICLD_YN" : "N",
-            "FNCG_AMT_AUTO_RDPT_YN" : "N",
-            "PRCS_DVSN" : "01",
-            "CTX_AREA_FK100" : "",
-            "CTX_AREA_NK100" : ""
+            "PDNO": "",
+            "ORD_UNPR": "",
+            "ORD_DVSN": "01",
+            "CMA_EVLU_AMT_ICLD_YN" : "N",
+            "OVRS_ICLD_YN" : "N"
         }
 
         res = requests.get(URL, headers=headers, params=params)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
-            result = res.json()['output2'][0]
-            return float(result['dnca_tot_amt'])
+            result = res.json()['output']
+            return float(result['nrcvb_buy_amt'])
         else:
             print("Error Code : " + str(res.status_code) + " | " + res.text)
             return res.json()["msg_cd"]
@@ -298,7 +294,7 @@ class KoreaManager:
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             result = res.json()['output2'][0]
-            return float(result['dnca_tot_amt']), float(result['tot_evlu_amt'])
+            return self.get_cash(account), float(result['tot_evlu_amt'])
         else:
             print("Error Code : " + str(res.status_code) + " | " + res.text)
             return res.json()["msg_cd"]

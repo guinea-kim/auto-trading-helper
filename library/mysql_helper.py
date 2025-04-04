@@ -332,3 +332,54 @@ class DatabaseHandler:
             num = result[0] if result else 0
 
         return f"{user_id}_{num}"
+
+    def get_consolidated_portfolio_allocation(self):
+        """모든 계좌의 종목들을 합쳐서 종목별 비중 조회 (계좌 상관없이 종목별로 합산)"""
+        # 최신 날짜 찾기
+        latest_date_sql = """
+            SELECT MAX(record_date) as latest_date 
+            FROM daily_records
+        """
+
+        # 해당 날짜의 모든 total 종목 가져오기 (전체 자금 계산용)
+        total_sql = """
+            SELECT SUM(amount) as total_value
+            FROM daily_records
+            WHERE record_date = :latest_date AND symbol = 'total'
+        """
+
+        # 해당 날짜의 모든 종목별 평가금액 합산 (계좌 상관없이 symbol로 그룹화)
+        consolidated_sql = """
+            SELECT symbol, SUM(amount) as total_value
+            FROM daily_records
+            WHERE record_date = :latest_date AND symbol != 'total'
+            GROUP BY symbol
+            ORDER BY total_value DESC
+        """
+
+        with self.engine.connect() as conn:
+            # 최신 날짜 조회
+            latest_date_result = conn.execute(text(latest_date_sql))
+            latest_date = latest_date_result.fetchone().latest_date
+
+            if not latest_date:
+                return None, None
+
+            # 전체 자금 조회
+            total_result = conn.execute(text(total_sql), {"latest_date": latest_date})
+            total_value = total_result.fetchone().total_value
+
+            if not total_value:
+                return None, None
+
+            # 종목별 합산 데이터 조회
+            consolidated_result = conn.execute(text(consolidated_sql), {"latest_date": latest_date})
+
+            # 종목별 데이터 및 비중 계산
+            allocations = []
+            for row in consolidated_result:
+                allocation = dict(row._mapping)
+                allocation['percentage'] = (allocation['total_value'] / total_value) * 100
+                allocations.append(allocation)
+
+            return allocations, total_value

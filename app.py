@@ -12,6 +12,7 @@ kr_db_handler = DatabaseHandler(secret.db_name_kr)
 
 
 # Routes
+
 @app.route('/')
 def index():
     market = request.args.get('market', 'us')  # 기본값 'us', 한국은 'kr'
@@ -21,10 +22,15 @@ def index():
     accounts = current_db_handler.get_accounts()
     trading_rules = current_db_handler.get_trading_rules()
 
+    # 종목별 합산된 포트폴리오 배분 데이터 가져오기 (계좌 상관없이)
+    consolidated_allocations, total_value = current_db_handler.get_consolidated_portfolio_allocation()
+
     return render_template('index.html',
                            accounts=accounts,
                            trading_rules=trading_rules,
-                           current_market=market)
+                           current_market=market,
+                           consolidated_allocations=consolidated_allocations,
+                           total_value=total_value)
 
 
 @app.route('/account/add', methods=['POST'])

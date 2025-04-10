@@ -90,7 +90,7 @@ class TradingSystem:
         manager = self.get_manager(rule['user_id'])
         try:
             order = manager.place_limit_buy_order(rule['hash_value'], rule['symbol'], quantity, price)
-            if order.is_success:
+            if order and order.is_success:
                 # 매매 성공 알림 메시지 생성 및 전송
                 alert_msg = self._create_buy_alert_message(rule, quantity, price)
                 SendMessage(alert_msg)
@@ -100,8 +100,7 @@ class TradingSystem:
                 )
                 order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
 
-                self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price,
-                                             'BUY')
+                self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price, 'BUY')
                 self.logger.info(f"Buy order placed successfully: {order_id}")
                 return True
             else:
@@ -109,25 +108,24 @@ class TradingSystem:
                 return False
         except Exception as e:
             self.logger.error(f"Error during buy order for {rule['symbol']}: {str(e)}")
-            return False
+            raise
 
     def place_sell_order(self, rule: dict, quantity: int, price: float):
         self.logger.info(f"Placing sell order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
         manager = self.get_manager(rule['user_id'])
         try:
             order = manager.place_limit_sell_order(rule['hash_value'], rule['symbol'], quantity, price)
-            if order.is_success:
+            if order and order.is_success:
+                # 매매 성공 알림 메시지 생성 및 전송
+                alert_msg = self._create_sell_alert_message(rule, quantity, price)
+                SendMessage(alert_msg)
+
                 self.positions_by_account[rule['hash_value']][rule['symbol']] = (
                         self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) - quantity
                 )
                 order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
 
-                self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price,
-                                             'SELL')
-
-                # 매매 성공 알림 메시지 생성 및 전송
-                alert_msg = self._create_sell_alert_message(rule, quantity, price)
-                SendMessage(alert_msg)
+                self.db_handler.record_trade(rule['account_id'], rule['id'], order_id, rule['symbol'], quantity, price, 'SELL')
                 self.logger.info(f"Sell order placed successfully: {order_id}")
                 return True
             else:
@@ -135,7 +133,7 @@ class TradingSystem:
                 return False
         except Exception as e:
             self.logger.error(f"Error during sell order for {rule['symbol']}: {str(e)}")
-            return False
+            raise
 
     def _create_buy_alert_message(self, rule, quantity, price):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
@@ -226,7 +224,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
             except Exception as e:
                 self.logger.error(f"Error during trading rule processing: {str(e)}")
-                time.sleep(5)
+                raise
 
         # update current_holding, last_price
         self.logger.info("Market closed. Updating final positions and prices.")
@@ -354,7 +352,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 required_cash - current_cash,
                 self.positions_by_account[rule['hash_value']]
             )
-            if order.is_success:
+            if order and order.is_success:
                 self.logger.info("ETF sold successfully for cash")
                 current_cash = manager.get_cash(rule['hash_value'])
             else:

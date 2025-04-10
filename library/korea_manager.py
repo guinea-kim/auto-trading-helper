@@ -170,7 +170,7 @@ class KoreaManager:
                 # 보유 종목 추가
                 for stock in res.json()['output1']:
                     if int(stock['hldg_qty']) > 0:
-                        positions[stock['pdno']] = stock['hldg_qty']
+                        positions[stock['pdno']] = int(stock['hldg_qty'])
 
                 # 연속 조회 여부 확인
                 if prev_nk_key == nk_key or not nk_key:

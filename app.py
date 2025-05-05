@@ -25,12 +25,26 @@ def index():
     # 종목별 합산된 포트폴리오 배분 데이터 가져오기 (계좌 상관없이)
     consolidated_allocations, total_value = current_db_handler.get_consolidated_portfolio_allocation()
 
+    total_contribution = 0.0
+    for account in accounts:
+        if account.get('contribution') is not None:
+            try:
+                total_contribution += float(account['contribution'])
+            except (ValueError, TypeError):
+                pass
+    total_profit = float(total_value) - total_contribution
+    profit_percent = (total_profit / total_contribution * 100) if total_contribution > 0 else 0
+    is_kr_market = (market == 'kr')
     return render_template('index.html',
                            accounts=accounts,
                            trading_rules=trading_rules,
                            current_market=market,
                            consolidated_allocations=consolidated_allocations,
-                           total_value=total_value)
+                           total_value=total_value,
+                           total_contribution=total_contribution,
+                           total_profit=total_profit,
+                           profit_percent=profit_percent,
+                           is_kr_market=is_kr_market)
 
 
 @app.route('/account/add', methods=['POST'])

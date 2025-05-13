@@ -210,7 +210,7 @@ function saveTokensToFile(userId, tokenData) {
 // Function to automate the login process using Puppeteer
 async function automateLogin(config) {
   const browser = await puppeteer.launch({
-    headless: true, // May need to set to false in the future to avoid automation detection
+    headless: false, // May need to set to false in the future to avoid automation detection
     ignoreHTTPSErrors: true,
     args: [
       "--no-sandbox",
@@ -297,12 +297,17 @@ async function automateLogin(config) {
     await page.waitForSelector("input[type='checkbox']", { visible: true });
 
     // Make sure all accounts are checked (if they aren't by default)
-    const accountsChecked = await page.$eval("input[type='checkbox']", (checkbox) => checkbox.checked);
-    if (!accountsChecked) {
-      await page.click("input[type='checkbox']");
-      logger.info("Account checkbox clicked.");
-    } else {
-      logger.info("Account checkbox was already checked.");
+    const checkboxes = await page.$$("input[type='checkbox']");
+    logger.info(`Found ${checkboxes.length} account checkboxes`);
+
+    for (let i = 0; i < checkboxes.length; i++) {
+      const isChecked = await checkboxes[i].evaluate(checkbox => checkbox.checked);
+      if (!isChecked) {
+        await checkboxes[i].click();
+        logger.info(`Clicked checkbox #${i+1} that was not checked`);
+      } else {
+        logger.info(`Checkbox #${i+1} was already checked`);
+      }
     }
 
     // Click the "Continue" button on the accounts page

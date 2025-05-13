@@ -163,7 +163,7 @@ class SchwabManager:
         client = self.get_client()
         quote_data = client.get_quote(symbol)
         quote = quote_data.json()
-        return float(quote[symbol]["quote"]["lastPrice"])
+        return round(float(quote[symbol]["quote"]["lastPrice"]), 2)
 
     def place_market_sell_order(self, hash_value: str, symbol: str, quantity: int) -> bool:
         """Place market sell order"""

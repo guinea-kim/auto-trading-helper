@@ -304,11 +304,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     def sell_stock(self, rule, last_price):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
-        today_trading_quantity = self.db_handler.get_trade_today(rule['id'])
+        today_trading_money = self.db_handler.get_trade_today(rule['id'], 'SELL')
 
         # 매도할 최대 수량 계산
         max_shares = min(
-            int(rule['daily_money'] / last_price) - int(today_trading_quantity),
+            (int(rule['daily_money']) - today_trading_money)// last_price,
             int(current_holding) - int(rule['target_amount'])
         )
 
@@ -327,11 +327,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     def buy_stock(self, manager, rule, last_price):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
-        today_trading_quantity = self.db_handler.get_trade_today(rule['id'])
+        today_trading_money = self.db_handler.get_trade_today(rule['id'], 'BUY')
 
         # 매수할 최대 수량 계산
         max_shares = min(
-            int(rule['daily_money'] / last_price) - int(today_trading_quantity),
+            (int(rule['daily_money']) - today_trading_money)// last_price,
             int(rule['target_amount']) - int(current_holding)
         )
 

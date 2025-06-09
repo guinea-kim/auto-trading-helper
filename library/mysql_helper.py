@@ -91,13 +91,13 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql), {"user_id": user_id})
             return [row.hash_value for row in result]
-    def get_trade_today(self, rule_id: int):
-        sql = """select sum(quantity) as total_quantity from trade_history where trading_rule_id=:rule_id
-                    AND DATE(trade_date) = CURRENT_DATE()"""
+    def get_trade_today(self, rule_id: int, trade_type: str):
+        sql = """select sum(used_money) as total_money from trade_history where trading_rule_id=:rule_id
+                    AND DATE(trade_date) = CURRENT_DATE() AND trade_type = :trade_type"""
         with self.engine.connect() as conn:
-            result = conn.execute(text(sql), {"rule_id": rule_id})
+            result = conn.execute(text(sql), {"rule_id": rule_id, "trade_type": trade_type})
             row = result.fetchone()
-            return int(row.total_quantity) if row and row.total_quantity is not None else 0
+            return int(row.total_money) if row and row.total_money is not None else 0
     def record_trade(self, account_id: str, rule_id: int, order_id:str, symbol: str,
                      quantity: int, price: float, trade_type: str) -> None:
         """거래 이력 기록"""

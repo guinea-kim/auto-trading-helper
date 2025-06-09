@@ -162,7 +162,14 @@ class SchwabManager:
         """Get current price for a symbol"""
         client = self.get_client()
         quote_data = client.get_quote(symbol)
-        quote = quote_data.json()
+        try:
+            quote = quote_data.json()
+        except json.JSONDecodeError as e:
+            logging.error(f"JSON decode error for {symbol}: {e}")
+            return None
+        except Exception as e:
+            logging.error(f"Error calling json() for {symbol}: {e}")
+            return None
         return round(float(quote[symbol]["quote"]["lastPrice"]), 2)
 
     def place_market_sell_order(self, hash_value: str, symbol: str, quantity: int) -> bool:

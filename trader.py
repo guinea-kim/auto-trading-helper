@@ -208,6 +208,8 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     symbol = rule['symbol']
                     manager = self.get_manager(rule['user_id'])
                     last_price = manager.get_last_price(symbol)
+                    if last_price is None:
+                        continue
                     self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
@@ -345,7 +347,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             f"Buy attempt for {rule['symbol']}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
 
         # 돈이 부족하면 채권매도 시도
-        if required_cash > current_cash:
+        if rule['symbol'] != "SGOV" and required_cash > current_cash:
             self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],

@@ -211,17 +211,18 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     last_price = manager.get_last_price(symbol)
                     if last_price is None:
                         continue
+                    symbol = rule['stock_name'] if rule['stock_name'] is not None else rule['symbol']
                     self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
                     if action == OrderType.BUY and last_price <= rule['limit_price']:
                         self.logger.info(
                             f"Buy condition met for {symbol}: price ${last_price} <= limit ${rule['limit_price']}")
-                        self.buy_stock(manager, rule, last_price)
+                        self.buy_stock(manager, rule, last_price, symbol)
                     elif action == OrderType.SELL and last_price >= rule['limit_price']:
                         self.logger.info(
                             f"Sell condition met for {symbol}: price ${last_price} >= limit ${rule['limit_price']}")
-                        self.sell_stock(rule, last_price)
+                        self.sell_stock(rule, last_price, symbol)
 
                 time.sleep(1)
 
@@ -288,22 +289,22 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             hash_value = rule['hash_value']
             symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
 
-            if hash_value not in self.positions_result_by_account or symbol not in self.positions_result_by_account[
+            if hash_value not in self.positions_result_by_account or rule['symbol'] not in self.positions_result_by_account[
                 hash_value]:
                 self.logger.warning(f"No position data for rule {rule_id}, symbol {symbol}, hash {hash_value}")
-                last_price = self.get_any_manager().get_last_price(symbol)
+                last_price = self.get_any_manager().get_last_price(rule['symbol'])
                 self.db_handler.update_current_price_quantity(rule_id, last_price, 0, 0)
                 continue
 
-            current_holding = self.positions_result_by_account[hash_value].get(symbol)['quantity']
-            last_price = self.positions_result_by_account[hash_value].get(symbol)['last_price']
-            average_price = self.positions_result_by_account[hash_value].get(symbol)['average_price']
+            current_holding = self.positions_result_by_account[hash_value].get(rule['symbol'])['quantity']
+            last_price = self.positions_result_by_account[hash_value].get(rule['symbol'])['last_price']
+            average_price = self.positions_result_by_account[hash_value].get(rule['symbol'])['average_price']
 
             self.logger.info(
                 f"Updating rule {rule_id}: {symbol} - Current holding: {current_holding}, Last price: ${last_price}, Avg price: ${average_price}")
             self.db_handler.update_current_price_quantity(rule_id, last_price, current_holding, average_price)
 
-    def sell_stock(self, rule, last_price):
+    def sell_stock(self, rule, last_price, symbol):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         today_trading_money = self.db_handler.get_trade_today(rule['id'], 'SELL')
 
@@ -314,19 +315,19 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         )
 
         if max_shares <= 0:
-            self.logger.info(f"No shares to sell for rule {rule['id']} ({rule['symbol']})")
+            self.logger.info(f"No shares to sell for rule {rule['id']} ({symbol})")
             self.logger.debug(
                 f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
             return
 
-        self.logger.info(f"Attempting to sell {max_shares} shares of {rule['symbol']} at ${last_price}")
+        self.logger.info(f"Attempting to sell {max_shares} shares of {symbol} at ${last_price}")
         if self.place_sell_order(rule, max_shares, last_price):
             if current_holding - max_shares <= rule['target_amount']:
                 self.logger.info(
                     f"Rule {rule['id']} completed after selling {max_shares} shares. New holding: {current_holding - max_shares}")
                 self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
 
-    def buy_stock(self, manager, rule, last_price):
+    def buy_stock(self, manager, rule, last_price, symbol):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         today_trading_money = self.db_handler.get_trade_today(rule['id'], 'BUY')
 
@@ -337,7 +338,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         )
 
         if max_shares <= 0:
-            self.logger.info(f"No shares to buy for rule {rule['id']} ({rule['symbol']})")
+            self.logger.info(f"No shares to buy for rule {rule['id']} ({symbol})")
             self.logger.debug(
                 f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
             return
@@ -345,10 +346,10 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         required_cash = max_shares * last_price
         current_cash = manager.get_cash(rule['hash_value'])
         self.logger.info(
-            f"Buy attempt for {rule['symbol']}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
+            f"Buy attempt for {symbol}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
 
         # 돈이 부족하면 채권매도 시도
-        if rule['symbol'] != "SGOV" and required_cash > current_cash:
+        if rule['symbol'] != "SGOV" and rule['stock_name'] is None and required_cash > current_cash:
             self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],
@@ -364,7 +365,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         # 돈이 부족한 만큼 수량 조정해서 매수
         max_shares = min(max_shares, int(current_cash / last_price))
         if max_shares > 0:
-            self.logger.info(f"Attempting to buy {max_shares} shares of {rule['symbol']} at ${last_price}")
+            self.logger.info(f"Attempting to buy {max_shares} shares of {symbol} at ${last_price}")
             if self.place_buy_order(rule, max_shares, last_price):
                 if current_holding + max_shares >= rule['target_amount']:
                     self.logger.info(
@@ -372,7 +373,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
         else:
             self.logger.warning(
-                f"Insufficient funds to buy {rule['symbol']}. Required: ${required_cash:.2f}, Available: ${current_cash:.2f}")
+                f"Insufficient funds to buy {symbol}. Required: ${required_cash:.2f}, Available: ${current_cash:.2f}")
 
 
 if __name__ == "__main__":

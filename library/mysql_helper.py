@@ -103,8 +103,8 @@ class DatabaseHandler:
         """거래 이력 기록"""
         sql = """
             INSERT INTO trade_history 
-            (account_id, trading_rule_id, order_id, symbol, quantity, price, trade_type)
-            VALUES (:account_id, :rule_id, :order_id, :symbol, :quantity, :price, :trade_type)
+            (account_id, trading_rule_id, order_id, symbol, quantity, price, trade_type, used_money)
+            VALUES (:account_id, :rule_id, :order_id, :symbol, :quantity, :price, :trade_type, :used_money)
         """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -114,7 +114,8 @@ class DatabaseHandler:
                 "symbol": symbol,
                 "quantity": quantity,
                 "price": price,
-                "trade_type": trade_type
+                "trade_type": trade_type,
+                "used_money": price*quantity
             })
             conn.commit()
     def update_account_hash(self, account_number: str, hash_value: str) -> None:

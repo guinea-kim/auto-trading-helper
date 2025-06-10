@@ -316,7 +316,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if max_shares <= 0:
             self.logger.info(f"No shares to sell for rule {rule['id']} ({rule['symbol']})")
             self.logger.debug(
-                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_quantity}")
+                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
             return
 
         self.logger.info(f"Attempting to sell {max_shares} shares of {rule['symbol']} at ${last_price}")
@@ -339,7 +339,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if max_shares <= 0:
             self.logger.info(f"No shares to buy for rule {rule['id']} ({rule['symbol']})")
             self.logger.debug(
-                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_quantity}")
+                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
             return
 
         required_cash = max_shares * last_price

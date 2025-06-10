@@ -139,11 +139,11 @@ class TradingSystem:
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         new_holding = current_holding + quantity
         total_cost = quantity * price
-
+        symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
         message = f"""
 [BUY ORDER]
 Account: {rule['description']} ({rule['user_id']})
-Symbol: {rule['symbol']}
+Symbol: {symbol}
 Purchase Price: ${price:.2f}
 Quantity: {quantity}주
 Total Cost: ${total_cost:.2f}
@@ -162,11 +162,12 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         new_holding = current_holding - quantity
         total_sale = quantity * price
+        symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
 
         message = f"""
 [SELL ORDER]
 Account: {rule['account_id']} ({rule['user_id']})
-Symbol: {rule['symbol']}
+Symbol: {symbol}
 Sell Price: ${price:.2f}
 Quantity: {quantity}주
 Total Sale: ${total_sale:.2f}
@@ -285,7 +286,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         for rule in rules:
             rule_id = rule['id']
             hash_value = rule['hash_value']
-            symbol = rule['symbol']
+            symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
 
             if hash_value not in self.positions_result_by_account or symbol not in self.positions_result_by_account[
                 hash_value]:

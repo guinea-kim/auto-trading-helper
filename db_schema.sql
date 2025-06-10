@@ -40,7 +40,8 @@ CREATE TABLE trade_history (
     quantity INT NOT NULL,
     price DECIMAL(10, 2) NOT NULL,
     trade_type ENUM('BUY', 'SELL') NOT NULL,
-    trade_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    trade_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used_money DECIMAL(20,2)
 );
 
 CREATE INDEX idx_trading_rules_account_status ON trading_rules(account_id, status);
@@ -94,7 +95,8 @@ CREATE TABLE helper_kr_db.trade_history (
     quantity INT NOT NULL,
     price DECIMAL(10) NOT NULL,
     trade_type ENUM('BUY', 'SELL') NOT NULL,
-    trade_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    trade_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    used_money DECIMAL(20,2)
 );
 CREATE INDEX idx_trading_rules_account_status ON helper_kr_db.trading_rules(account_id, status);
 
@@ -102,7 +104,7 @@ CREATE TABLE helper_kr_db.daily_records (
     id INT AUTO_INCREMENT PRIMARY KEY,
     record_date DATE,
     account_id VARCHAR(20),
-    symbol VARCHAR(6),
+    symbol VARCHAR(255),
     amount DECIMAL(18, 2),
     UNIQUE KEY (record_date, account_id, symbol)
 );

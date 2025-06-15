@@ -384,3 +384,64 @@ class DatabaseHandler:
                 allocations.append(allocation)
 
             return allocations, total_value
+
+    def get_daily_total_values(self, max_points=50):
+        """날짜별 총 자산 가치 조회 (스마트 샘플링)"""
+        # 먼저 전체 데이터 개수 확인
+        count_sql = """
+            SELECT COUNT(DISTINCT record_date) as total_days
+            FROM daily_records
+            WHERE symbol = 'total'
+        """
+
+        with self.engine.connect() as conn:
+            count_result = conn.execute(text(count_sql))
+            total_days = count_result.fetchone().total_days
+
+            if total_days <= max_points:
+                # 데이터가 적으면 모든 데이터 반환
+                sql = """
+                    SELECT 
+                        record_date,
+                        SUM(amount) as total_value
+                    FROM daily_records
+                    WHERE symbol = 'total'
+                    GROUP BY record_date
+                    ORDER BY record_date ASC
+                """
+                result = conn.execute(text(sql))
+            else:
+                # 데이터가 많으면 샘플링
+                # ROW_NUMBER를 사용하여 균등하게 샘플링
+                interval = total_days // max_points
+                sql = """
+                    WITH ranked_data AS (
+                        SELECT 
+                            record_date,
+                            SUM(amount) as total_value,
+                            ROW_NUMBER() OVER (ORDER BY record_date) as rn
+                        FROM daily_records
+                        WHERE symbol = 'total'
+                        GROUP BY record_date
+                    )
+                    SELECT record_date, total_value
+                    FROM ranked_data
+                    WHERE rn = 1 OR rn % :interval = 0 OR rn = :total_days
+                    ORDER BY record_date ASC
+                """
+                result = conn.execute(text(sql), {
+                    "interval": interval,
+                    "total_days": total_days
+                })
+
+            data = []
+            for row in result:
+                row_dict = dict(row._mapping)
+                # 날짜를 문자열로 변환
+                row_dict['record_date'] = row_dict['record_date'].strftime('%Y-%m-%d')
+                # Decimal을 float으로 변환
+                if isinstance(row_dict['total_value'], decimal.Decimal):
+                    row_dict['total_value'] = float(row_dict['total_value'])
+                data.append(row_dict)
+
+            return data

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>자동 거래 관리 시스템</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <style>
         body {
             padding-top: 20px;
@@ -69,6 +70,17 @@
         .summary-label {
             font-size: 14px;
             color: #6c757d;
+        }
+        /* Chart Styles */
+        .chart-container {
+            background-color: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+        }
+        .chart-canvas {
+            max-height: 400px;
         }
     </style>
 </head>
@@ -143,82 +155,23 @@
                 </div>
             </div>
         </div>
-        <div class="row">
-            <!-- Account Form -->
-            <div class="col-md-6">
-                <div class="form-container">
-                    <h3>계정 추가</h3>
-                    <form action="{{ url_for('add_account') }}" method="post">
-                        <input type="hidden" name="market" value="{{ current_market }}">
-                        <div class="mb-3">
-                            <label for="user_id" class="form-label">사용자 ID</label>
-                            <input type="text" class="form-control" id="user_id" name="user_id" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="account_number" class="form-label">계좌번호</label>
-                            <input type="text" class="form-control" id="account_number" name="account_number" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="description" class="form-label">설명</label>
-                            <input type="text" class="form-control" id="description" name="description" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">계정 추가</button>
-                    </form>
-                </div>
+        <!-- Daily Total Value Chart -->
+        {% if daily_total_values %}
+        <div class="chart-container">
+            <h3 class="text-center mb-4">총 자산 추이 (전체 기간)</h3>
+            <div class="alert alert-info">
+                <small>
+                    <i class="fas fa-info-circle"></i>
+                    기간: {{ daily_total_values[0].record_date }} ~ {{ daily_total_values[-1].record_date }}
+                    ({{ daily_total_values|length }}개 데이터 포인트)
+                </small>
             </div>
-
-            <!-- Trading Rule Form -->
-            <div class="col-md-6">
-                <div class="form-container">
-                    <h3>거래 규칙 추가</h3>
-                    <form action="{{ url_for('add_trading_rule') }}" method="post">
-                        <input type="hidden" name="market" value="{{ current_market }}">
-                        <div class="mb-3">
-                            <label for="account_id" class="form-label">계정 선택</label>
-                            <select class="form-select" id="account_id" name="account_id" required>
-                                <option value="">계정을 선택하세요</option>
-                                {% for account in accounts %}
-                                <option value="{{ account.id }}">{{ account.id }} - {{ account.description }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="symbol" class="form-label">Symbol</label>
-                            <input type="text" class="form-control" id="symbol" name="symbol" required>
-                        </div>
-                        {% if current_market == 'kr' %}
-                        <div class="mb-3">
-                            <label for="stock_name" class="form-label">종목명</label>
-                            <input type="text" class="form-control" id="stock_name" name="stock_name" required>
-                        </div>
-                        {% else %}
-
-                        {% endif %}
-                        <div class="mb-3">
-                            <label for="trade_action" class="form-label">액션 선택</label>
-                            <select class="form-select" id="trade_action" name="trade_action" required>
-                                <option value="">액션을 선택하세요</option>
-                                <option value="1">BUY</option>
-                                <option value="0">SELL</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <label for="limit_price" class="form-label">한계 가격</label>
-                            <input type="number" step="0.01" class="form-control" id="limit_price" name="limit_price" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="target_amount" class="form-label">목표 수량</label>
-                            <input type="number" class="form-control" id="target_amount" name="target_amount" required>
-                        </div>
-                        <div class="mb-3">
-                            <label for="daily_money" class="form-label">일일 투자금</label>
-                            <input type="number" step="0.01" class="form-control" id="daily_money" name="daily_money" required>
-                        </div>
-                        <button type="submit" class="btn btn-primary">거래 규칙 추가</button>
-                    </form>
-                </div>
+            <div class="chart-canvas">
+                <canvas id="totalValueChart"></canvas>
             </div>
         </div>
+        {% endif %}
+
         <div class="table-container">
             <h3>종목별 포트폴리오 비중 (계좌 통합)</h3>
             {% if consolidated_allocations %}
@@ -414,8 +367,192 @@
                 </tbody>
             </table>
         </div>
+        <div class="row">
+            <!-- Account Form -->
+            <div class="col-md-6">
+                <div class="form-container">
+                    <h3>계정 추가</h3>
+                    <form action="{{ url_for('add_account') }}" method="post">
+                        <input type="hidden" name="market" value="{{ current_market }}">
+                        <div class="mb-3">
+                            <label for="user_id" class="form-label">사용자 ID</label>
+                            <input type="text" class="form-control" id="user_id" name="user_id" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="account_number" class="form-label">계좌번호</label>
+                            <input type="text" class="form-control" id="account_number" name="account_number" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="description" class="form-label">설명</label>
+                            <input type="text" class="form-control" id="description" name="description" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">계정 추가</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Trading Rule Form -->
+            <div class="col-md-6">
+                <div class="form-container">
+                    <h3>거래 규칙 추가</h3>
+                    <form action="{{ url_for('add_trading_rule') }}" method="post">
+                        <input type="hidden" name="market" value="{{ current_market }}">
+                        <div class="mb-3">
+                            <label for="account_id" class="form-label">계정 선택</label>
+                            <select class="form-select" id="account_id" name="account_id" required>
+                                <option value="">계정을 선택하세요</option>
+                                {% for account in accounts %}
+                                <option value="{{ account.id }}">{{ account.id }} - {{ account.description }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="symbol" class="form-label">Symbol</label>
+                            <input type="text" class="form-control" id="symbol" name="symbol" required>
+                        </div>
+                        {% if current_market == 'kr' %}
+                        <div class="mb-3">
+                            <label for="stock_name" class="form-label">종목명</label>
+                            <input type="text" class="form-control" id="stock_name" name="stock_name" required>
+                        </div>
+                        {% else %}
+
+                        {% endif %}
+                        <div class="mb-3">
+                            <label for="trade_action" class="form-label">액션 선택</label>
+                            <select class="form-select" id="trade_action" name="trade_action" required>
+                                <option value="">액션을 선택하세요</option>
+                                <option value="1">BUY</option>
+                                <option value="0">SELL</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label for="limit_price" class="form-label">한계 가격</label>
+                            <input type="number" step="0.01" class="form-control" id="limit_price" name="limit_price" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="target_amount" class="form-label">목표 수량</label>
+                            <input type="number" class="form-control" id="target_amount" name="target_amount" required>
+                        </div>
+                        <div class="mb-3">
+                            <label for="daily_money" class="form-label">일일 투자금</label>
+                            <input type="number" step="0.01" class="form-control" id="daily_money" name="daily_money" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">거래 규칙 추가</button>
+                    </form>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+ <!-- Chart.js Script -->
+    {% if daily_total_values %}
+    <script>
+        // 차트 데이터 준비
+        const dailyData = {{ daily_total_values | tojson }};
+
+        const labels = dailyData.map(item => item.record_date);
+        const values = dailyData.map(item => parseFloat(item.total_value));
+
+        // Canvas 요소 확인
+        const canvas = document.getElementById('totalValueChart');
+
+        if (!canvas) {
+            console.error('Canvas element not found!');
+        } else {
+            // 차트 설정
+            const ctx = canvas.getContext('2d');
+
+            const chartConfig = {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: '총 자산 가치',
+                        data: values,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.1,
+                        pointBackgroundColor: 'rgb(75, 192, 192)',
+                        pointBorderColor: '#fff',
+                        pointBorderWidth: 2,
+                        pointRadius: 3,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        title: {
+                            display: false
+                        },
+                        legend: {
+                            display: false
+                        }
+                    },
+                    scales: {
+                        x: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '날짜'
+                            },
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 10
+                            }
+                        },
+                        y: {
+                            display: true,
+                            title: {
+                                display: true,
+                                text: '자산 가치 ($)'
+                            },
+                            ticks: {
+                                callback: function(value, index, values) {
+                                    // 'is_kr_market' 변수를 사용하여 원화(₩) 또는 달러($)를 동적으로 표시
+                                    {% if is_kr_market %}
+                                        return '₩' + value.toLocaleString();
+                                    {% else %}
+                                        return '$' + value.toLocaleString();
+                                    {% endif %}
+                                }
+                            }
+                        }
+                    },
+                    elements: {
+                        point: {
+                            hoverRadius: 8
+                        }
+                    }
+                }
+            };
+
+            console.log('Chart config:', chartConfig);
+
+            try {
+                const totalValueChart = new Chart(ctx, chartConfig);
+                console.log('Chart created successfully:', totalValueChart);
+            } catch (error) {
+                console.error('Error creating chart:', error);
+            }
+        }
+    </script>
+    {% else %}
+    <script>
+        console.log('No daily_total_values data available');
+    </script>
+    {% endif %}
 </body>
 </html>

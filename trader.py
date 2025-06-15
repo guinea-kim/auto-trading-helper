@@ -139,7 +139,7 @@ class TradingSystem:
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         new_holding = current_holding + quantity
         total_cost = quantity * price
-        symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
+        symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
         message = f"""
 [BUY ORDER]
 Account: {rule['description']} ({rule['user_id']})
@@ -162,7 +162,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
         new_holding = current_holding - quantity
         total_sale = quantity * price
-        symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
+        symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
 
         message = f"""
 [SELL ORDER]
@@ -211,7 +211,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     last_price = manager.get_last_price(symbol)
                     if last_price is None:
                         continue
-                    symbol = rule['stock_name'] if rule['stock_name'] is not None else rule['symbol']
+                    symbol = rule['stock_name'] if 'stock_name' in rule else rule['symbol']
                     self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
@@ -287,18 +287,18 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         for rule in rules:
             rule_id = rule['id']
             hash_value = rule['hash_value']
-            symbol = rule['symbol'] if rule['stock_name'] is None else rule['stock_name']
+            symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
 
-            if hash_value not in self.positions_result_by_account or rule['symbol'] not in self.positions_result_by_account[
+            if hash_value not in self.positions_result_by_account or symbol not in self.positions_result_by_account[
                 hash_value]:
                 self.logger.warning(f"No position data for rule {rule_id}, symbol {symbol}, hash {hash_value}")
                 last_price = self.get_any_manager().get_last_price(rule['symbol'])
                 self.db_handler.update_current_price_quantity(rule_id, last_price, 0, 0)
                 continue
 
-            current_holding = self.positions_result_by_account[hash_value].get(rule['symbol'])['quantity']
-            last_price = self.positions_result_by_account[hash_value].get(rule['symbol'])['last_price']
-            average_price = self.positions_result_by_account[hash_value].get(rule['symbol'])['average_price']
+            current_holding = self.positions_result_by_account[hash_value].get(symbol)['quantity']
+            last_price = self.positions_result_by_account[hash_value].get(symbol)['last_price']
+            average_price = self.positions_result_by_account[hash_value].get(symbol)['average_price']
 
             self.logger.info(
                 f"Updating rule {rule_id}: {symbol} - Current holding: {current_holding}, Last price: ${last_price}, Avg price: ${average_price}")
@@ -349,7 +349,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             f"Buy attempt for {symbol}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
 
         # 돈이 부족하면 채권매도 시도
-        if rule['symbol'] != "SGOV" and rule['stock_name'] is None and required_cash > current_cash:
+        if rule['symbol'] != "SGOV" and 'stock_name' not in rule and required_cash > current_cash:
             self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],

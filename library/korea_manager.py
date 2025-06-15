@@ -224,7 +224,7 @@ class KoreaManager:
                 # 보유 종목 추가
                 for stock in res.json()['output1']:
                     if int(stock['hldg_qty']) > 0:
-                        symbol = stock['pdno']
+                        symbol = stock['prdt_name']
                         quantity = stock['hldg_qty']
                         average_price = stock['pchs_avg_pric']
                         last_price = stock['prpr']

@@ -140,19 +140,30 @@ class TradingSystem:
         new_holding = current_holding + quantity
         total_cost = quantity * price
         symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
+        
+        # 조건 메시지 생성
+        if rule.get('limit_type') == 'percent' and rule.get('average_price') is not None:
+            if rule['average_price'] > 0:
+                buy_price = rule['average_price'] * (1 - rule['limit_value'] / 100)
+                condition_msg = f"- {price} <= {rule['limit_value']}% below avg {rule['average_price']} ({buy_price})"
+            else:
+                condition_msg = f"- {price} (average_price is 0, buying at current price)"
+        else:
+            condition_msg = f"- {price} <= Limit Price({rule['limit_value']})"
+        
         message = f"""
 [BUY ORDER]
 Account: {rule['description']} ({rule['user_id']})
 Symbol: {symbol}
-Purchase Price: ${price:.2f}
+Purchase Price: {price}
 Quantity: {quantity}주
-Total Cost: ${total_cost:.2f}
+Total Cost: {total_cost}
                     
 Condition:
-- ${price:.2f} <= Limit Price(${rule['limit_price']:.2f})
+{condition_msg}
 - Target Quantity: {rule['target_amount']}
 - Updated Quantity: {current_holding} -> {new_holding}
-- Daily Money Limit: ${rule['daily_money']:.2f}
+- Daily Money Limit: {rule['daily_money']}
                     
 Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     """
@@ -163,20 +174,30 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         new_holding = current_holding - quantity
         total_sale = quantity * price
         symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
-
+        
+        # 조건 메시지 생성
+        if rule.get('limit_type') == 'percent' and rule.get('average_price') is not None:
+            if rule['average_price'] > 0:
+                sell_price = rule['average_price'] * (1 + rule['limit_value'] / 100)
+                condition_msg = f"- {price} >= {rule['limit_value']}% above avg {rule['average_price']} ({sell_price})"
+            else:
+                condition_msg = f"- {price} (average_price is 0, no selling)"
+        else:
+            condition_msg = f"- {price} >= Limit Price({rule['limit_value']})"
+        
         message = f"""
 [SELL ORDER]
 Account: {rule['account_id']} ({rule['user_id']})
 Symbol: {symbol}
-Sell Price: ${price:.2f}
+Sell Price: {price}
 Quantity: {quantity}주
-Total Sale: ${total_sale:.2f}
+Total Sale: {total_sale}
                     
 Condition:
-- ${price:.2f} >= Limit Price(${rule['limit_price']:.2f})
+{condition_msg}
 - Target Quantity: {rule['target_amount']}주
 - Updated Quantity: {current_holding}주 -> {new_holding}주
-- Daily Money Limit: ${rule['daily_money']:.2f}
+- Daily Money Limit: {rule['daily_money']}
                     
 Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     """
@@ -215,14 +236,41 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
-                    if action == OrderType.BUY and last_price <= rule['limit_price']:
-                        self.logger.info(
-                            f"Buy condition met for {symbol}: price ${last_price} <= limit ${rule['limit_price']}")
-                        self.buy_stock(manager, rule, last_price, symbol)
-                    elif action == OrderType.SELL and last_price >= rule['limit_price']:
-                        self.logger.info(
-                            f"Sell condition met for {symbol}: price ${last_price} >= limit ${rule['limit_price']}")
-                        self.sell_stock(rule, last_price, symbol)
+                    # limit_type에 따라 분기
+                    if rule.get('limit_type') == 'percent' and rule.get('average_price') is not None:
+                        if rule['average_price'] > 0:
+                            percent = rule['limit_value']
+                            if action == OrderType.BUY:
+                                buy_price = rule['average_price'] * (1 - percent / 100)
+                                if last_price <= buy_price:
+                                    self.logger.info(
+                                        f"Buy condition met for {symbol}: price ${last_price} <= {percent}% below avg ${rule['average_price']} (${buy_price:.2f})")
+                                    self.buy_stock(manager, rule, last_price, symbol)
+                            elif action == OrderType.SELL:
+                                sell_price = rule['average_price'] * (1 + percent / 100)
+                                if last_price >= sell_price:
+                                    self.logger.info(
+                                        f"Sell condition met for {symbol}: price ${last_price} >= {percent}% above avg ${rule['average_price']} (${sell_price:.2f})")
+                                    self.sell_stock(rule, last_price, symbol)
+                        else:
+                            # average_price가 0인 경우: 현재가로 매수만, 매도는 안함
+                            if action == OrderType.BUY:
+                                self.logger.info(
+                                    f"Buy condition met for {symbol}: average_price is 0, buying at current price ${last_price}")
+                                self.buy_stock(manager, rule, last_price, symbol)
+                            elif action == OrderType.SELL:
+                                self.logger.info(
+                                    f"Sell skipped for {symbol}: average_price is 0, no selling")
+                    else:
+                        # 가격 기준 거래
+                        if action == OrderType.BUY and last_price <= rule['limit_value']:
+                            self.logger.info(
+                                f"Buy condition met for {symbol}: price ${last_price} <= limit ${rule['limit_value']}")
+                            self.buy_stock(manager, rule, last_price, symbol)
+                        elif action == OrderType.SELL and last_price >= rule['limit_value']:
+                            self.logger.info(
+                                f"Sell condition met for {symbol}: price ${last_price} >= limit ${rule['limit_value']}")
+                            self.sell_stock(rule, last_price, symbol)
 
                 time.sleep(1)
 
@@ -306,7 +354,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     def sell_stock(self, rule, last_price, symbol):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
-        today_trading_money = self.db_handler.get_trade_today(rule['id'], 'SELL')
+        today_trading_money = self.db_handler.get_trade_today(rule['id'])
 
         # 매도할 최대 수량 계산
         max_shares = min(
@@ -329,7 +377,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
     def buy_stock(self, manager, rule, last_price, symbol):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
-        today_trading_money = self.db_handler.get_trade_today(rule['id'], 'BUY')
+        today_trading_money = self.db_handler.get_trade_today(rule['id'])
 
         # 매수할 최대 수량 계산
         max_shares = min(

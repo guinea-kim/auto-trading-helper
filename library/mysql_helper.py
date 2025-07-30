@@ -91,11 +91,11 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql), {"user_id": user_id})
             return [row.hash_value for row in result]
-    def get_trade_today(self, rule_id: int, trade_type: str):
+    def get_trade_today(self, rule_id: int):
         sql = """select sum(used_money) as total_money from trade_history where trading_rule_id=:rule_id
-                    AND DATE(trade_date) = CURRENT_DATE() AND trade_type = :trade_type"""
+                    AND DATE(trade_date) = CURRENT_DATE()"""
         with self.engine.connect() as conn:
-            result = conn.execute(text(sql), {"rule_id": rule_id, "trade_type": trade_type})
+            result = conn.execute(text(sql), {"rule_id": rule_id})
             row = result.fetchone()
             return int(row.total_money) if row and row.total_money is not None else 0
     def record_trade(self, account_id: str, rule_id: int, order_id:str, symbol: str,
@@ -204,6 +204,8 @@ class DatabaseHandler:
 
     def update_rule_field(self, rule_id, field, value):
         with self.engine.connect() as conn:
+            if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money']:
+                raise ValueError('Invalid field for update')
             sql = f"UPDATE trading_rules SET {field} = :value, last_updated = NOW() WHERE id = :rule_id"
             conn.execute(text(sql), {"value": value, "rule_id": rule_id})
             conn.commit()
@@ -235,40 +237,41 @@ class DatabaseHandler:
             })
             conn.commit()
 
-    def add_trading_rule(self, account_id: str, symbol: str, limit_price: float,
+    def add_trading_rule(self, account_id: str, symbol: str, limit_value: float, limit_type: str,
                          target_amount: int, daily_money: float, trade_action: str) -> None:
         """새 거래 규칙 추가"""
         sql = """
                INSERT INTO trading_rules 
-               (account_id, symbol, limit_price, target_amount, daily_money, trade_action)
-               VALUES (:account_id, :symbol, :limit_price, :target_amount, :daily_money, :trade_action)
+               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action)
+               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "account_id": account_id,
                 "symbol": symbol,
-                "limit_price": limit_price,
+                "limit_value": limit_value,
+                "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
                 "trade_action": trade_action
             })
             conn.commit()
 
-    def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str,
-                            limit_price: int, target_amount: int,
-                            daily_money: int, trade_action: str) -> None:
+    def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str, limit_value: int, limit_type: str,
+                            target_amount: int, daily_money: int, trade_action: str) -> None:
         """한국주식 거래 규칙 추가"""
         sql = """
             INSERT INTO trading_rules 
-            (account_id, symbol, stock_name, limit_price, target_amount, daily_money, trade_action)
-            VALUES (:account_id, :symbol, :stock_name, :limit_price, :target_amount, :daily_money, :trade_action)
+            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action)
+            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
         """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "account_id": account_id,
                 "symbol": symbol,
                 "stock_name": stock_name,
-                "limit_price": limit_price,
+                "limit_value": limit_value,
+                "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
                 "trade_action": trade_action

@@ -493,8 +493,77 @@ async function main() {
 
   const successCount = Object.values(results).filter(Boolean).length;
   logger.info(`\nCompleted: ${successCount}/${usersToProcess.length} users processed successfully`);
+  if (successCount !== usersToProcess.length) {
+    console.log("처리된 사용자 수와 전체 사용자 수가 일치하지 않습니다. 이메일을 보냅니다.");
+    await sendEmailNotification(successCount, usersToProcess.length);
+  }
 
   process.exit();
+}
+async function getEmailSecretsFromPython() {
+  const tempEmailScriptPath = path.join(__dirname, 'temp_get_email_secrets.py');
+
+  // 임시 Python 스크립트 작성
+  fs.writeFileSync(tempEmailScriptPath, `
+import json
+import sys
+sys.path.append('.')
+from library import secret
+
+email_secrets = {
+    "alert_email": secret.alert_email,
+    "alert_password": secret.alert_password,
+    "alerted_email": secret.alerted_email
+}
+print(json.dumps(email_secrets))
+`);
+
+  try {
+    const { stdout, stderr } = await execPromise(`python ${tempEmailScriptPath}`);
+    // 임시 파일 삭제
+    fs.unlinkSync(tempEmailScriptPath);
+
+    return JSON.parse(stdout.trim()); // JSON 파싱 후 반환
+  } catch (error) {
+    console.error('Python 스크립트 실행 또는 출력 파싱 실패:', error);
+    throw error;
+  }
+}
+async function sendEmailNotification(successCount, totalUsers) {
+  const nodemailer = require('nodemailer');
+  let emailSecrets;
+
+  try {
+    emailSecrets = await getEmailSecretsFromPython();
+  } catch (error) {
+    console.error('이메일 비밀 정보를 가져오는 데 실패했습니다. 이메일 전송을 중단합니다.', error);
+    return;
+  }
+
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailSecrets.alert_email,
+      pass: emailSecrets.alert_password
+    }
+  });
+
+  // 메일 옵션 설정
+  let mailOptions = {
+    from: emailSecrets.alert_email,
+    to: emailSecrets.alerted_email,
+    subject: '작업 완료 알림: 사용자 처리 불일치',
+    text: `성공적으로 처리된 사용자 수에 불일치가 있습니다.\n\n` +
+          `총 사용자 수: ${totalUsers}\n` +
+          `성공적으로 처리된 사용자 수: ${successCount}\n\n`
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('이메일이 성공적으로 전송되었습니다.');
+  } catch (error) {
+    console.error('이메일 전송 중 오류 발생:', error);
+  }
 }
 
 // Run the main function

@@ -62,6 +62,38 @@ USER_AUTH_CONFIGS = {
         }
     }
 ```
+## 새로운 기능: 한계값/퍼센트 통합 입력 방식
+
+### 거래 규칙 입력 방식
+- **한계값**: limit_value (숫자 입력)
+- **한계값 종류**: limit_type (가격/퍼센트 선택)
+- 예시: [ 100.00 ][가격] 또는 [ 5.0 ][%]
+
+### DB 구조 예시
+| id | ... | limit_value | limit_type | ... |
+|----|-----|-------------|-----------|-----|
+| 1  | ... | 100.00      | price     | ... (미국 주식) |
+| 2  | ... | 5.00        | percent   | ... (미국 주식) |
+| 3  | ... | 50000       | price     | ... (한국 주식) |
+| 4  | ... | 5.00        | percent   | ... (한국 주식) |
+
+### 거래 로직
+- limit_type이 'price'면 limit_value를 가격으로 사용
+- limit_type이 'percent'면 average_price의 limit_value% 기준으로 매수/매도
+  - 매수: average_price * (1 - limit_value/100)
+  - 매도: average_price * (1 + limit_value/100)
+  - average_price가 0이면 현재가로 매수만, 매도는 하지 않음
+
+### 데이터 타입 차이
+- **미국 주식**: limit_value는 DECIMAL(10,2) - 소수점 가격 지원
+- **한국 주식**: limit_value는 DECIMAL(10) - 정수 가격만 지원 (소수점 없음)
+
+### 사용 방법
+1. 거래 규칙 추가 시 한계값 입력란에 숫자 입력, 옆 드롭다운에서 "가격" 또는 "%" 선택
+2. 시스템이 자동으로 해당 기준에 따라 거래 조건을 계산
+
+---
+
 ## Set up Automated schwab login
 ### OpenSSL and Certificates
 

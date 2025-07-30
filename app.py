@@ -79,7 +79,7 @@ def add_account():
 @app.route('/rule/add', methods=['POST'])
 def add_trading_rule():
     if request.method == 'POST':
-        market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+        market = request.form.get('market', 'us')
         current_db_handler = us_db_handler if market == 'us' else kr_db_handler
         account_id = request.form.get('account_id')
         symbol = request.form.get('symbol')
@@ -87,28 +87,26 @@ def add_trading_rule():
             stock_name = request.form.get('stock_name')
         else:
             stock_name = None
-
-        limit_price = request.form.get('limit_price')
+        limit_value = request.form.get('limit_value')
+        limit_type = request.form.get('limit_type')
         target_amount = request.form.get('target_amount')
         daily_money = request.form.get('daily_money')
         trade_action = request.form.get('trade_action')
 
-        required_fields = ['account_id', 'symbol', 'limit_price', 'target_amount', 'daily_money', 'trade_action']
-
-        # validate field
+        required_fields = ['account_id', 'symbol', 'limit_value', 'limit_type', 'target_amount', 'daily_money', 'trade_action']
         missing_fields = [field for field in required_fields if not request.form.get(field)]
         if missing_fields:
             flash(f"Missing required fields: {', '.join(missing_fields)}", "danger")
             return redirect(url_for('index', market=market))
 
         try:
-            # Insert trading rule using DB handler
             if market == 'kr':
                 current_db_handler.add_kr_trading_rule(
                     account_id,
                     symbol,
                     stock_name,
-                    int(limit_price),
+                    int(limit_value),
+                    limit_type,
                     int(target_amount),
                     int(daily_money),
                     trade_action
@@ -117,16 +115,15 @@ def add_trading_rule():
                 current_db_handler.add_trading_rule(
                     account_id,
                     symbol,
-                    float(limit_price),
+                    float(limit_value),
+                    limit_type,
                     int(target_amount),
                     float(daily_money),
                     trade_action
                 )
-
             flash("Trading rule added successfully!", "success")
         except Exception as e:
             flash(f"Error: {e}", "danger")
-
         return redirect(url_for('index', market=market))
 
 
@@ -180,35 +177,26 @@ def update_rule_status(rule_id):
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):
     value = request.form.get('value')
-    market = request.form.get('market', 'us')  # 시장 구분 파라미터 추가
+    market = request.form.get('market', 'us')
     current_db_handler = us_db_handler if market == 'us' else kr_db_handler
     if not value:
         flash(f"{field} value is required", "danger")
         return redirect(url_for('index', market=market))
-
     try:
-        # 필드 유효성 검사
-        if field not in ['limit_price', 'target_amount', 'daily_money']:
+        if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money']:
             flash("Invalid field to update", "danger")
             return redirect(url_for('index', market=market))
-
-        # 데이터 유효성 검사 및 변환
-        if field == 'limit_price':
+        if field == 'limit_value' or field == 'daily_money':
             value = float(value)
         elif field == 'target_amount':
             value = int(value)
-        elif field == 'daily_money':
-            value = float(value)
-
-        # DB 핸들러를 통해 필드 업데이트
+        # limit_type은 그대로
         current_db_handler.update_rule_field(rule_id, field, value)
-
         flash(f"Trading rule {field} updated successfully!", "success")
     except ValueError:
         flash(f"Invalid value format for {field}", "danger")
     except Exception as e:
         flash(f"Error: {e}", "danger")
-
     return redirect(url_for('index', market=market))
 
 if __name__ == '__main__':

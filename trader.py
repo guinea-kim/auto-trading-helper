@@ -442,4 +442,19 @@ if __name__ == "__main__":
 
     # Start trading
     mp.freeze_support()
-    trading_system.process_trading_rules()
+    try:
+        trading_system.process_trading_rules()
+    except Exception as e:
+        error_message = f"""
+[TRADING SYSTEM CRASHED]
+Market: {args.market.upper()}
+Error: {str(e)}
+Status: Trading system crashed unexpectedly
+"""
+        try:
+            SendMessage(error_message)
+            print(f"Trading system crashed: {e}")
+        except Exception as alert_error:
+            print(f"Failed to send crash notification: {alert_error}")
+            print(f"Original error: {e}")
+        raise  # 원래 에러를 다시 발생시켜서 디버깅 정보 유지

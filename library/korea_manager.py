@@ -9,6 +9,9 @@ import time
 from math import ceil
 import requests
 
+# Timeout settings for API requests (in seconds)
+REQUEST_TIMEOUT = 30
+
 from library.secret import USER_AUTH_CONFIGS_KR
 from library import secret
 from library.mysql_helper import DatabaseHandler
@@ -60,7 +63,7 @@ class KoreaManager:
         }
 
         # 호출
-        res = requests.get(URL, headers=headers, params=params)
+        res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             DayList = res.json()['output']
@@ -158,7 +161,7 @@ class KoreaManager:
                 "CTX_AREA_NK100": nk_key
             }
 
-            res = requests.get(URL, headers=headers, params=params)
+            res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
             # 연속 조회 처리
             tr_cont = "N" if res.headers['tr_cont'] in ["M", "F"] else ""
@@ -212,7 +215,7 @@ class KoreaManager:
                 "CTX_AREA_NK100": nk_key
             }
 
-            res = requests.get(URL, headers=headers, params=params)
+            res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
             # 연속 조회 처리
             tr_cont = "N" if res.headers['tr_cont'] in ["M", "F"] else ""
@@ -262,7 +265,7 @@ class KoreaManager:
             "OVRS_ICLD_YN" : "N"
         }
 
-        res = requests.get(URL, headers=headers, params=params)
+        res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             result = res.json()['output']
@@ -290,7 +293,7 @@ class KoreaManager:
             "CTX_AREA_NK100" : ""
         }
 
-        res = requests.get(URL, headers=headers, params=params)
+        res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             result = res.json()['output2'][0]
@@ -310,7 +313,7 @@ class KoreaManager:
         }
 
         # 호출
-        res = requests.get(URL, headers=headers, params=params)
+        res = requests.get(URL, headers=headers, params=params, timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             return int(res.json()['output']['stck_prpr'])
@@ -328,7 +331,7 @@ class KoreaManager:
             'appSecret': self.secret,
         }
 
-        res = requests.post(URL, headers=headers, data=json.dumps(datas))
+        res = requests.post(URL, headers=headers, data=json.dumps(datas), timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200:
             return res.json()["HASH"]
@@ -341,7 +344,7 @@ class KoreaManager:
         data = self._get_base_data(account, stockcode, quantity, 0, "01")
         headers = self._get_base_headers("TTTC0011U", include_custtype=True)
         headers["hashkey"] = self.get_hash(data)
-        res = requests.post(URL, headers=headers, data=json.dumps(data))
+        res = requests.post(URL, headers=headers, data=json.dumps(data), timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
 
@@ -364,7 +367,7 @@ class KoreaManager:
         data = self._get_base_data(account, stockcode, quantity, price, "00")
         headers = self._get_base_headers("TTTC0012U", include_custtype=True)
         headers["hashkey"] = self.get_hash(data)
-        res = requests.post(URL, headers=headers, data=json.dumps(data))
+        res = requests.post(URL, headers=headers, data=json.dumps(data), timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             order = res.json()['output']
@@ -384,7 +387,7 @@ class KoreaManager:
         data = self._get_base_data(account, stockcode, quantity, price, "00")
         headers = self._get_base_headers("TTTC0011U", include_custtype=True)
         headers["hashkey"] = self.get_hash(data)
-        res = requests.post(URL, headers=headers, data=json.dumps(data))
+        res = requests.post(URL, headers=headers, data=json.dumps(data), timeout=REQUEST_TIMEOUT)
 
         if res.status_code == 200 and res.json()["rt_cd"] == '0':
             order = res.json()['output']

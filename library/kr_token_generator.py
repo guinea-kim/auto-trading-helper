@@ -7,6 +7,9 @@ from library import secret
 from library.mysql_helper import DatabaseHandler
 from library.secret import USER_AUTH_CONFIGS_KR
 
+# Timeout settings for API requests (in seconds)
+REQUEST_TIMEOUT = 30
+
 def MakeToken(user):
     headers = {"content-type": "application/json"}
     body = {
@@ -17,7 +20,7 @@ def MakeToken(user):
 
     PATH = "oauth2/tokenP"
     URL = f"{secret.KR_REAL_URL}/{PATH}"
-    res = requests.post(URL, headers=headers, data=json.dumps(body))
+    res = requests.post(URL, headers=headers, data=json.dumps(body), timeout=REQUEST_TIMEOUT)
 
     if res.status_code == 200:
         my_token = res.json()["access_token"]

@@ -229,7 +229,10 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 for rule in rules:
                     symbol = rule['symbol']
                     manager = self.get_manager(rule['user_id'])
-                    last_price = manager.get_last_price(symbol)
+                    try:
+                        last_price = manager.get_last_price(symbol)
+                    except Exception as e:
+                        continue
                     if last_price is None:
                         continue
                     symbol = rule['stock_name'] if 'stock_name' in rule else rule['symbol']
@@ -244,9 +247,6 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                 self.logger.info(
                                     f"Buy condition met for {symbol}: average_price is 0, buying at current price ${last_price}")
                                 self.buy_stock(manager, rule, last_price, symbol)
-                            elif action == OrderType.SELL:
-                                self.logger.info(
-                                    f"Sell skipped for {symbol}: average_price is 0, no selling")
                         else:
                             percent = rule['limit_value']
                             if action == OrderType.BUY:

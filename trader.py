@@ -237,8 +237,17 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
                     action = rule['trade_action']
                     # limit_type에 따라 분기
-                    if rule.get('limit_type') == 'percent' and rule.get('average_price') is not None:
-                        if rule['average_price'] > 0:
+                    if rule.get('limit_type') == 'percent':
+                        if rule.get('average_price') is None or rule['average_price'] == 0:
+                            # average_price가 0인 경우: 현재가로 매수만, 매도는 안함
+                            if action == OrderType.BUY:
+                                self.logger.info(
+                                    f"Buy condition met for {symbol}: average_price is 0, buying at current price ${last_price}")
+                                self.buy_stock(manager, rule, last_price, symbol)
+                            elif action == OrderType.SELL:
+                                self.logger.info(
+                                    f"Sell skipped for {symbol}: average_price is 0, no selling")
+                        else:
                             percent = rule['limit_value']
                             if action == OrderType.BUY:
                                 buy_price = rule['average_price'] * (1 - percent / 100)
@@ -252,15 +261,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                     self.logger.info(
                                         f"Sell condition met for {symbol}: price ${last_price} >= {percent}% above avg ${rule['average_price']} (${sell_price:.2f})")
                                     self.sell_stock(rule, last_price, symbol)
-                        else:
-                            # average_price가 0인 경우: 현재가로 매수만, 매도는 안함
-                            if action == OrderType.BUY:
-                                self.logger.info(
-                                    f"Buy condition met for {symbol}: average_price is 0, buying at current price ${last_price}")
-                                self.buy_stock(manager, rule, last_price, symbol)
-                            elif action == OrderType.SELL:
-                                self.logger.info(
-                                    f"Sell skipped for {symbol}: average_price is 0, no selling")
+
                     else:
                         # 가격 기준 거래
                         if action == OrderType.BUY and last_price <= rule['limit_value']:

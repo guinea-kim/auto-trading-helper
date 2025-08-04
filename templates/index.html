@@ -22,6 +22,12 @@
         }
         .flash-messages {
             margin-bottom: 20px;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            background-color: white;
+            padding: 10px 0;
+            border-bottom: 1px solid #dee2e6;
         }
         .editable-field {
             width: 80px;
@@ -256,7 +262,7 @@
                                 <div class="input-group input-group-sm">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <input type="hidden" name="account_id" value="{{ account.id }}">
-                                    <input type="number" step="0.01" class="form-control" name="contribution" value="{{ account.contribution|float|default(0, true) }}">
+                                    <input type="number" step="0.01" class="form-control" name="contribution" value="{{ account.contribution|float|default(0, true) }}" title="기여금">
                                     <button type="submit" class="btn btn-sm btn-outline-primary">저장</button>
                                 </div>
                             </form>
@@ -318,11 +324,11 @@
                             <div class="d-flex align-items-center">
                                 <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_value') }}" method="post" class="d-inline me-2" style="flex: 1;">
                                     <input type="hidden" name="market" value="{{ current_market }}">
-                                    <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.limit_value }}" onchange="this.form.submit()" title="한계값">
+                                    <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.limit_value }}" title="한계값">
                                 </form>
                                 <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_type') }}" method="post" class="d-inline" style="flex: 0 0 auto;">
                                     <input type="hidden" name="market" value="{{ current_market }}">
-                                    <select name="value" class="form-select form-select-sm" onchange="this.form.submit()" style="width: 70px; font-size: 0.8rem;">
+                                    <select name="value" class="form-select form-select-sm" style="width: 70px; font-size: 0.8rem;">
                                         <option value="price" {% if rule.limit_type == 'price' %}selected{% endif %}>가격</option>
                                         <option value="percent" {% if rule.limit_type == 'percent' %}selected{% endif %}>%</option>
                                     </select>
@@ -332,14 +338,14 @@
                         <td>
                             <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <input type="number" class="form-control form-control-sm editable-field" name="value" value="{{ rule.target_amount }}" onchange="this.form.submit()" title="목표 수량">
+                                <input type="number" class="form-control form-control-sm editable-field" name="value" value="{{ rule.target_amount }}" title="목표 수량">
                             </form>
                         </td>
                         <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{% else %}{{ rule.trade_action }}{% endif %}</td>
                         <td>
                             <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" onchange="this.form.submit()" title="일일 투자금" style="width: 100%;">
+                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" title="일일 투자금" style="width: 100%;">
                             </form>
                         </td>
                         <td>
@@ -363,7 +369,7 @@
                         <td>
                             <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                <select name="status" class="form-select form-select-sm">
                                     <option value="">상태변경</option>
                                     <option value="ACTIVE">ACTIVE</option>
                                     <option value="COMPLETED">COMPLETED</option>
@@ -481,6 +487,75 @@
                     }
                 });
             }
+
+            // 스크롤 위치 유지를 위한 AJAX 폼 제출 처리
+            function handleFormSubmit(event) {
+                event.preventDefault();
+                
+                const form = event.target;
+                const formData = new FormData(form);
+                const currentScrollPosition = window.scrollY;
+
+                const flashMessagesContainer = document.querySelector('.flash-messages');
+
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => {
+                    if (response.ok) {
+                        window.scrollTo(0, currentScrollPosition);
+
+                        flashMessagesContainer.innerHTML = `
+                            <div class="alert alert-success alert-dismissible fade show" role="alert">
+                                <strong>성공!</strong> 값이 업데이트되었습니다.
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        `;
+
+                        // 3초 후 메시지 자동 제거
+                        setTimeout(() => {
+                            flashMessagesContainer.innerHTML = '';
+                        }, 3000);
+                    } else {
+                        throw new Error(`Network response was not ok: ${response.status}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    
+                    // 에러 시 메시지 표시
+                    flashMessagesContainer.innerHTML = `
+                        <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                            <strong>오류!</strong> 값 업데이트에 실패했습니다.
+                            <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                        </div>
+                    `;
+                    
+                    setTimeout(() => {
+                        flashMessagesContainer.innerHTML = '';
+                    }, 3000);
+                });
+            }
+
+            // 모든 업데이트 폼에 대해 AJAX 처리 적용
+            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"], form[action*="update_rule_status"]');
+            
+            updateForms.forEach(form => {
+                // 폼 제출 이벤트 리스너 추가
+                form.addEventListener('submit', handleFormSubmit);
+                
+                // 입력 필드에 change 이벤트 리스너 추가
+                const changeInputs = form.querySelectorAll('input[type="number"], input[type="text"], select');
+                changeInputs.forEach(input => {
+                    input.addEventListener('change', (event) => {
+                        // 변경된 input 정보를 이벤트에 추가
+                        const submitEvent = new Event('submit');
+                        submitEvent.changedInput = event.target;
+                        form.dispatchEvent(submitEvent);
+                    });
+                });
+            });
         });
     </script>
  <!-- Chart.js Script -->
@@ -575,11 +650,8 @@
                 }
             };
 
-            console.log('Chart config:', chartConfig);
-
             try {
                 const totalValueChart = new Chart(ctx, chartConfig);
-                console.log('Chart created successfully:', totalValueChart);
             } catch (error) {
                 console.error('Error creating chart:', error);
             }

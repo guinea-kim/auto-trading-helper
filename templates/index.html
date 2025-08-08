@@ -369,7 +369,7 @@
                         <td>
                             <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <select name="status" class="form-select form-select-sm">
+                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                     <option value="">상태변경</option>
                                     <option value="ACTIVE">ACTIVE</option>
                                     <option value="COMPLETED">COMPLETED</option>
@@ -539,7 +539,7 @@
             }
 
             // 모든 업데이트 폼에 대해 AJAX 처리 적용
-            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"], form[action*="update_rule_status"]');
+            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"]');
             
             updateForms.forEach(form => {
                 // 폼 제출 이벤트 리스너 추가

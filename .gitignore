@@ -1,3 +1,47 @@
+# Ignore tokens and secret config
+library/tokens/
+library/secret.py
+library/config.py
+
+# IDE/editor configs
+.idea/
+.vscode/
+
+# Python caches and artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Byte-compiled / optimized / DLL files
+*.so
+
+# Distribution / packaging
+*.egg-info/
+dist/
+build/
+pip-wheel-metadata/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Logs and database
+*.log
+log/
+
+# Node.js
+node_modules/
+package-lock.json
+
+# Keys and certificates
+server-cert.pem
+server-key.pem
+
+# Misc
+*.sqlite3
+.DS_Store
 library/tokens/
 library/secret.py
 library/config.py

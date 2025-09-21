@@ -186,18 +186,20 @@ class DatabaseHandler:
                 "rule_id": rule_id
             })
             conn.commit()
-    def update_current_price_quantity(self, rule_id: int, last_price: float, current_holding: int, average_price: float) -> None:
-        """거래 규칙 상태 업데이트"""
+    def update_current_price_quantity(self, rule_id: int, last_price: float, current_holding: int, average_price: float, high_price: float = 0) -> None:
+        """거래 규칙 상태와 가격정보 업데이트"""
         sql = """
                UPDATE trading_rules 
-               SET last_price = :last_price, current_holding=:current_holding, average_price=:average_price
+               SET last_price = :last_price, current_holding = :current_holding, 
+                   average_price = :average_price, high_price = :high_price
                WHERE id = :rule_id
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "last_price": last_price,
                 "current_holding": current_holding,
-                "average_price" : average_price,
+                "average_price": average_price,
+                "high_price": high_price,
                 "rule_id": rule_id
             })
             conn.commit()

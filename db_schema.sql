@@ -22,12 +22,13 @@ CREATE TABLE trading_rules (
     symbol VARCHAR(10) NOT NULL,
     trade_action TINYINT NOT NULL,
     limit_value DECIMAL(10, 2) NOT NULL,
-    limit_type ENUM('price', 'percent') NOT NULL DEFAULT 'price',
+    limit_type ENUM('price', 'percent', 'high_percent') NOT NULL DEFAULT 'price',
     target_amount INT NOT NULL,
     daily_money DECIMAL(10, 2) NOT NULL,
     current_holding INT NOT NULL,
     average_price decimal(10,2),
     last_price DECIMAL(10, 2) NOT NULL,
+    high_price DECIMAL(10, 2) DEFAULT 0.00,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     status ENUM('ACTIVE', 'COMPLETED', 'CANCELLED') DEFAULT 'ACTIVE'
 );
@@ -78,12 +79,13 @@ CREATE TABLE helper_kr_db.trading_rules (
     stock_name text NOT NULL,
     trade_action TINYINT NOT NULL,
     limit_value DECIMAL(10) NOT NULL,
-    limit_type ENUM('price', 'percent') NOT NULL DEFAULT 'price',
+    limit_type ENUM('price', 'percent', 'high_percent') NOT NULL DEFAULT 'price',
     target_amount INT NOT NULL,
     daily_money DECIMAL(10) NOT NULL,
     current_holding INT NOT NULL,
     average_price decimal(10,2),
     last_price DECIMAL(10) NOT NULL,
+    high_price DECIMAL(10) DEFAULT 0,
     last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     status ENUM('ACTIVE', 'COMPLETED', 'CANCELLED') DEFAULT 'ACTIVE'
 );

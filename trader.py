@@ -242,7 +242,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     if last_price is None:
                         continue
                     symbol = rule['stock_name'] if 'stock_name' in rule else rule['symbol']
-                    self.logger.debug(f"Current price for {symbol}: ${last_price}")
+                    #self.logger.debug(f"Current price for {symbol}: ${last_price}")
 
                     action = rule['trade_action']
                     # limit_type에 따라 분기

@@ -148,6 +148,12 @@ class TradingSystem:
                 condition_msg = f"- {price} <= {rule['limit_value']}% below avg {rule['average_price']} ({buy_price})"
             else:
                 condition_msg = f"- {price} (average_price is 0, buying at current price)"
+        elif rule.get('limit_type') == 'high_percent' and rule.get('high_price') is not None:
+            if rule['high_price'] > 0:
+                buy_price = rule['high_price'] * (1 - rule['limit_value'] / 100)
+                condition_msg = f"- {price} <= {rule['limit_value']}% below high {rule['high_price']} ({buy_price})"
+            else:
+                condition_msg = f"- {price} (high_price is 0, cannot buy)"
         else:
             condition_msg = f"- {price} <= Limit Price({rule['limit_value']})"
         
@@ -261,6 +267,13 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                                     self.logger.info(
                                         f"Sell condition met for {symbol}: price ${last_price} >= {percent}% above avg ${rule['average_price']} (${sell_price:.2f})")
                                     self.sell_stock(rule, last_price, symbol)
+                    elif rule.get('limit_type') == 'high_percent':
+                        if action == OrderType.BUY and rule.get('high_price', 0) > 0:
+                            buy_price = rule['high_price'] * (1 - rule['limit_value'] / 100)
+                            if last_price <= buy_price:
+                                self.logger.info(
+                                    f"Buy condition met for {symbol}: price ${last_price} <= {rule['limit_value']}% below high ${rule['high_price']} (${buy_price:.2f})")
+                                self.buy_stock(manager, rule, last_price, symbol)
 
                     else:
                         # 가격 기준 거래
@@ -349,9 +362,16 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             last_price = self.positions_result_by_account[hash_value].get(symbol)['last_price']
             average_price = self.positions_result_by_account[hash_value].get(symbol)['average_price']
 
-            self.logger.info(
-                f"Updating rule {rule_id}: {symbol} - Current holding: {current_holding}, Last price: ${last_price}, Avg price: ${average_price}")
-            self.db_handler.update_current_price_quantity(rule_id, last_price, current_holding, average_price)
+            # Update high_price if average_price is non-zero
+            if average_price > 0:
+                high_price = max(last_price, rule.get('high_price', 0))
+                self.logger.info(
+                    f"Updating rule {rule_id}: {symbol} - Current holding: {current_holding}, Last price: ${last_price}, Avg price: ${average_price}, High price: ${high_price}")
+                self.db_handler.update_current_price_quantity(rule_id, last_price, current_holding, average_price, high_price)
+            else:
+                self.logger.info(
+                    f"Updating rule {rule_id}: {symbol} - Current holding: {current_holding}, Last price: ${last_price}, Avg price: ${average_price}")
+                self.db_handler.update_current_price_quantity(rule_id, last_price, current_holding, average_price)
 
     def sell_stock(self, rule, last_price, symbol):
         current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)

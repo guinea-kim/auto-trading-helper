@@ -208,7 +208,7 @@ class SchwabManager:
 
             return client.place_order(
                 hash_value,
-                equity_sell_limit(symbol, quantity, price)
+                equity_sell_limit(symbol, quantity, str(price))
                 .set_duration(Duration.DAY)
                 .set_session(Session.SEAMLESS)
                 .build()

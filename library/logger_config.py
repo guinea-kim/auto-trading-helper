@@ -4,7 +4,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 
-def setup_logger(name, log_folder='log', level=logging.INFO):
+def setup_logger(name, log_folder='log', level=logging.DEBUG):
     """
     로깅 설정을 초기화하는 함수
 

@@ -229,8 +229,8 @@ class KoreaManager:
                     if int(stock['hldg_qty']) > 0:
                         symbol = stock['prdt_name']
                         quantity = stock['hldg_qty']
-                        average_price = stock['pchs_avg_pric']
-                        last_price = stock['prpr']
+                        average_price = float(stock['pchs_avg_pric'])
+                        last_price = float(stock['prpr'])
 
                         positions[symbol] = {
                             "quantity": quantity,

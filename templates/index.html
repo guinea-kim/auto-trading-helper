@@ -331,6 +331,7 @@
                                     <select name="value" class="form-select form-select-sm" style="width: 70px; font-size: 0.8rem;">
                                         <option value="price" {% if rule.limit_type == 'price' %}selected{% endif %}>가격</option>
                                         <option value="percent" {% if rule.limit_type == 'percent' %}selected{% endif %}>%</option>
+                                        <option value="high_percent" {% if rule.limit_type == 'high_percent' %}selected{% endif %}>DIP %</option>
                                     </select>
                                 </form>
                             </div>
@@ -448,6 +449,7 @@
                                 <select class="form-select" id="limit_type" name="limit_type" style="max-width:100px;">
                                     <option value="price">가격</option>
                                     <option value="percent">%</option>
+                                    <option value="high_percent">DIP %</option>
                                 </select>
                             </div>
                             <div class="form-text">가격(예: 100.00) 또는 퍼센트(예: 5.0) 중 선택</div>
@@ -478,7 +480,7 @@
 
             if (limitTypeSelect && limitValueInput) {
                 limitTypeSelect.addEventListener('change', function() {
-                    if (this.value === 'percent') {
+                    if (this.value === 'percent' || this.value === 'high_percent') {
                         limitValueInput.placeholder = '예: 5.0 (5% 낮은 가격으로 매수, 5% 높은 가격으로 매도)';
                         limitValueInput.step = '0.01';
                     } else {

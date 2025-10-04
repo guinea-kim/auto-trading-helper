@@ -34,6 +34,30 @@ class TradingSystem:
         first_user_id = next(iter(self.managers))
         return self.managers[first_user_id]
 
+    def check_periodic_buy_date(self, rule: dict) -> bool:
+        """정기 매수 날짜인지 확인하는 함수"""
+        today = datetime.now()
+        
+        if rule['limit_type'] == 'weekly':
+            # 0(월요일) ~ 6(일요일)
+            return today.weekday() == rule['limit_value']
+        
+        elif rule['limit_type'] == 'monthly':
+            # 1 ~ 31일
+            return today.day == rule['limit_value']
+            
+        return False
+
+    def update_periodic_rule_status(self):
+        """정기 매수 규칙의 상태를 업데이트하는 함수"""
+        rules = self.db_handler.get_periodic_rules()  # weekly/monthly type의 규칙들만 조회
+        
+        for rule in rules:
+            # PROCESSED 상태인 규칙만 체크
+            if rule['status'] == 'PROCESSED' and self.check_periodic_buy_date(rule):
+                # 정기 매수일이 되면 ACTIVE로 변경
+                self.db_handler.update_rule_status(rule['id'], 'ACTIVE')
+
     def load_daily_positions(self, user_id: str, max_retries: int = 3, retry_delay: float = 2.0):
         """하루 시작할 때 포지션 로드, 실패 시 재시도 로직 포함"""
         self.logger.info(f"Loading daily positions for user {user_id}")
@@ -222,6 +246,9 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         """모든 유저의 모든 계좌의 거래 규칙 처리"""
         self.logger.info("Starting trading rule processing")
 
+        # 정기 매수 규칙 상태 업데이트
+        self.update_periodic_rule_status()
+        
         # 각 유저의 각 계좌별 포지션 로드
         users = self.db_handler.get_users()
         for user in users:
@@ -246,7 +273,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
 
                     action = rule['trade_action']
                     # limit_type에 따라 분기
-                    if rule.get('limit_type') == 'percent':
+                    if rule.get('limit_type') in ['weekly', 'monthly']:
+                        if action == OrderType.BUY:
+                            self.logger.info(f"Periodic buy for {symbol} at current price ${last_price}")
+                            self.buy_stock(manager, rule, last_price, symbol)
+                    elif rule.get('limit_type') == 'percent':
                         if rule.get('average_price') is None or rule['average_price'] == 0:
                             # average_price가 0인 경우: 현재가로 매수만, 매도는 안함
                             if action == OrderType.BUY:
@@ -417,8 +448,8 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.logger.info(
             f"Buy attempt for {symbol}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
 
-        # 돈이 부족하면 채권매도 시도
-        if rule['symbol'] != "SGOV" and 'stock_name' not in rule and required_cash > current_cash:
+        # 돈이 부족하면 채권매도 시도 (cash_only가 False일 때만)
+        if not rule['cash_only'] and required_cash > current_cash:
             self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],
@@ -436,7 +467,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         if max_shares > 0:
             self.logger.info(f"Attempting to buy {max_shares} shares of {symbol} at ${last_price}")
             if self.place_buy_order(rule, max_shares, last_price):
-                if current_holding + max_shares >= rule['target_amount']:
+                if rule['limit_type'] in ['weekly', 'monthly']:
+                    # 정기 매수의 경우 매수 완료 후 PROCESSED로 변경
+                    self.db_handler.update_rule_status(rule['id'], 'PROCESSED')
+                elif current_holding + max_shares >= rule['target_amount']:
+                    # 일반 매수의 경우 목표 수량 달성 시 COMPLETED로 변경
                     self.logger.info(
                         f"Rule {rule['id']} completed after buying {max_shares} shares. New holding: {current_holding + max_shares}")
                     self.db_handler.update_rule_status(rule['id'], 'COMPLETED')

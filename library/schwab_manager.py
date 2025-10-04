@@ -132,7 +132,7 @@ class SchwabManager:
         for position in data["securitiesAccount"].get("positions", []):
             symbol = position["instrument"]["symbol"]
             quantity = position["longQuantity"]
-            average_price = position["averagePrice"]
+            average_price = float(position["averagePrice"])
 
             # Calculate last price from marketValue and longQuantity
             last_price = position["marketValue"] / position["longQuantity"] if position["longQuantity"] != 0 else 0

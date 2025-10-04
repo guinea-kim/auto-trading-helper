@@ -92,6 +92,7 @@ def add_trading_rule():
         target_amount = request.form.get('target_amount')
         daily_money = request.form.get('daily_money')
         trade_action = request.form.get('trade_action')
+        cash_only = 1 if 'cash_only' in request.form else 0
 
         required_fields = ['account_id', 'symbol', 'limit_value', 'limit_type', 'target_amount', 'daily_money', 'trade_action']
         missing_fields = [field for field in required_fields if not request.form.get(field)]
@@ -109,7 +110,8 @@ def add_trading_rule():
                     limit_type,
                     int(target_amount),
                     int(daily_money),
-                    trade_action
+                    trade_action,
+                    cash_only
                 )
             else:
                 current_db_handler.add_trading_rule(
@@ -119,7 +121,8 @@ def add_trading_rule():
                     limit_type,
                     int(target_amount),
                     float(daily_money),
-                    trade_action
+                    trade_action,
+                    cash_only
                 )
             flash("Trading rule added successfully!", "success")
         except Exception as e:
@@ -183,13 +186,15 @@ def update_rule_field(rule_id, field):
         flash(f"{field} value is required", "danger")
         return redirect(url_for('index', market=market))
     try:
-        if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money']:
+        if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money', 'cash_only']:
             flash("Invalid field to update", "danger")
             return redirect(url_for('index', market=market))
         if field == 'limit_value' or field == 'daily_money':
             value = float(value)
         elif field == 'target_amount':
             value = int(value)
+        elif field == 'cash_only':
+            value = 1 if value == '1' else 0
         # limit_type은 그대로
         current_db_handler.update_rule_field(rule_id, field, value)
         flash(f"Trading rule {field} updated successfully!", "success")

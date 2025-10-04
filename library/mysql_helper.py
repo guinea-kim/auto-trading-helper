@@ -52,6 +52,7 @@ class DatabaseHandler:
                         row_dict[key] = float(value)
                 rows.append(row_dict)
             return rows
+    
     def get_all_trading_rules(self) -> List[Dict]:
         """활성화된 모든 거래 규칙 조회"""
         sql = """
@@ -70,6 +71,7 @@ class DatabaseHandler:
                         row_dict[key] = float(value)
                 rows.append(row_dict)
             return rows
+    
     def get_accounts(self):
         sql = """
         SELECT * FROM accounts ORDER BY id
@@ -77,6 +79,7 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))
             return [dict(row._mapping) for row in result]
+    
     def get_users(self):
         sql = """
         SELECT DISTINCT(user_id) FROM accounts
@@ -84,6 +87,7 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))
             return [row.user_id for row in result]
+    
     def get_hash_value(self, user_id):
         sql = """
         SELECT hash_value FROM accounts where user_id=:user_id
@@ -91,6 +95,7 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             result = conn.execute(text(sql), {"user_id": user_id})
             return [row.hash_value for row in result]
+    
     def get_trade_today(self, rule_id: int):
         sql = """select sum(used_money) as total_money from trade_history where trading_rule_id=:rule_id
                     AND DATE(trade_date) = CURRENT_DATE()"""
@@ -98,6 +103,40 @@ class DatabaseHandler:
             result = conn.execute(text(sql), {"rule_id": rule_id})
             row = result.fetchone()
             return int(row.total_money) if row and row.total_money is not None else 0
+    
+    def get_trading_rules(self) -> List[Dict]:
+        """모든 거래 규칙 조회 (계정 설명 포함)"""
+        sql = """
+            SELECT tr.*, a.description as account_description 
+            FROM trading_rules tr 
+            JOIN accounts a ON tr.account_id = a.id 
+            ORDER BY tr.status, tr.account_id
+        """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql))
+            return [dict(row._mapping) for row in result]
+        
+    def get_user_accounts(self, user_id: str) -> List[Dict]:
+        """사용자의 계좌 목록 조회"""
+        sql = """
+               SELECT * FROM accounts 
+               WHERE user_id = :user_id
+           """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql), {"user_id": user_id})
+            return [dict(row._mapping) for row in result]
+        
+    def get_periodic_rules(self):
+        """정기 매수 규칙만 조회"""
+        sql = """
+            SELECT * FROM trading_rules 
+            WHERE limit_type IN ('weekly', 'monthly')
+            AND status IN ('ACTIVE', 'PROCESSED')
+        """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql))
+            return [dict(row._mapping) for row in result]
+        
     def record_trade(self, account_id: str, rule_id: int, order_id:str, symbol: str,
                      quantity: int, price: float, trade_type: str) -> None:
         """거래 이력 기록"""
@@ -119,7 +158,7 @@ class DatabaseHandler:
             })
             conn.commit()
     def update_account_hash(self, account_number: str, hash_value: str) -> None:
-        """거래 규칙 상태 업데이트"""
+        """계좌 hash값 업데이트"""
         sql = """
                UPDATE accounts 
                SET hash_value = :hash_value 
@@ -206,21 +245,13 @@ class DatabaseHandler:
 
     def update_rule_field(self, rule_id, field, value):
         with self.engine.connect() as conn:
-            if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money']:
+            if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money', 'cash_only']:
                 raise ValueError('Invalid field for update')
             sql = f"UPDATE trading_rules SET {field} = :value, last_updated = NOW() WHERE id = :rule_id"
             conn.execute(text(sql), {"value": value, "rule_id": rule_id})
             conn.commit()
 
-    def get_user_accounts(self, user_id: str) -> List[Dict]:
-        """사용자의 계좌 목록 조회"""
-        sql = """
-               SELECT * FROM accounts 
-               WHERE user_id = :user_id
-           """
-        with self.engine.connect() as conn:
-            result = conn.execute(text(sql), {"user_id": user_id})
-            return [dict(row._mapping) for row in result]
+    
 
         # 웹 인터페이스를 위한 추가 메서드
 
@@ -240,12 +271,12 @@ class DatabaseHandler:
             conn.commit()
 
     def add_trading_rule(self, account_id: str, symbol: str, limit_value: float, limit_type: str,
-                         target_amount: int, daily_money: float, trade_action: str) -> None:
+                         target_amount: int, daily_money: float, trade_action: str, cash_only: int) -> None:
         """새 거래 규칙 추가"""
         sql = """
                INSERT INTO trading_rules 
-               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action)
-               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
+               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
+               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -255,17 +286,18 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action
+                "trade_action": trade_action,
+                "cash_only": cash_only
             })
             conn.commit()
 
     def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str, limit_value: int, limit_type: str,
-                            target_amount: int, daily_money: int, trade_action: str) -> None:
+                            target_amount: int, daily_money: int, trade_action: str, cash_only: int) -> None:
         """한국주식 거래 규칙 추가"""
         sql = """
             INSERT INTO trading_rules 
-            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action)
-            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
+            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
+            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
         """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -276,7 +308,8 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action
+                "trade_action": trade_action,
+                "cash_only": cash_only
             })
             conn.commit()
     def add_daily_result(self, today, account_id, cash_balance, total_value, etfs):
@@ -314,18 +347,7 @@ class DatabaseHandler:
                     "amount": etf_value
                 })
                 conn.commit()
-    def get_trading_rules(self) -> List[Dict]:
-        """모든 거래 규칙 조회 (계정 설명 포함)"""
-        sql = """
-            SELECT tr.*, a.description as account_description 
-            FROM trading_rules tr 
-            JOIN accounts a ON tr.account_id = a.id 
-            ORDER BY tr.status, tr.account_id
-        """
-        with self.engine.connect() as conn:
-            result = conn.execute(text(sql))
-            return [dict(row._mapping) for row in result]
-
+    
     def generate_account_id(self, user_id: str) -> str:
         """user_id와 증가하는 숫자를 조합하여 account_id 생성"""
         sql = """

@@ -149,7 +149,10 @@ class SchwabManager:
         client = self.get_client()
 
         resp = client.get_account(hash_value)
-        data = json.loads(resp.content)
+        try:
+            data = json.loads(resp.content)
+        except Exception as e:
+            return 0
         return data["securitiesAccount"]["currentBalances"]["cashAvailableForTrading"]
     def get_account_result(self, hash_value: str) -> float:
         """Get available cash balance"""

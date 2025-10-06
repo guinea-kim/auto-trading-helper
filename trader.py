@@ -178,8 +178,12 @@ class TradingSystem:
                 condition_msg = f"- {price} <= {rule['limit_value']}% below high {rule['high_price']} ({buy_price})"
             else:
                 condition_msg = f"- {price} (high_price is 0, cannot buy)"
-        else:
+        elif rule['limit_type'] == 'price':
             condition_msg = f"- {price} <= Limit Price({rule['limit_value']})"
+        elif rule['limit_type'] == 'monthly':
+            condition_msg = f"- {price} (today is {rule['limit_value']})"
+        else:
+            condition_msg = f"- {price} (weekday is {rule['limit_value']})"
         
         message = f"""
 [BUY ORDER]

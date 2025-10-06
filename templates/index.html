@@ -47,6 +47,10 @@
         .input-group-sm {
             max-width: 150px;
         }
+        th {
+            white-space: nowrap; /* 모든 th에 적용 */
+            vertical-align: middle; /* 세로 정렬을 중앙으로 맞춤 */
+        }
         td {
             vertical-align: middle;
         }
@@ -382,7 +386,7 @@
                                 <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                     <option value="">상태변경</option>
                                     <option value="ACTIVE">ACTIVE</option>
-                                    <option value="COMPLETED">PROCESSED</option>
+                                    <option value="PROCESSED">PROCESSED</option>
                                     <option value="COMPLETED">COMPLETED</option>
                                     <option value="CANCELLED">CANCELLED</option>
                                 </select>

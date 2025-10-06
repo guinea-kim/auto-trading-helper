@@ -3,7 +3,11 @@ const express = require("express");
 const axios = require("axios");
 const https = require("https");
 const fs = require("fs");
-const puppeteer = require("puppeteer");
+//const puppeteer = require("puppeteer");
+const puppeteer = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+puppeteer.use(StealthPlugin());
+
 const path = require("path");
 const { exec } = require("child_process");
 const { promisify } = require("util");

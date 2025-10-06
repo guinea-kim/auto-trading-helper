@@ -182,9 +182,8 @@ def update_rule_field(rule_id, field):
     value = request.form.get('value')
     market = request.form.get('market', 'us')
     current_db_handler = us_db_handler if market == 'us' else kr_db_handler
-    if not value:
-        flash(f"{field} value is required", "danger")
-        return redirect(url_for('index', market=market))
+
+
     try:
         if field not in ['limit_value', 'limit_type', 'target_amount', 'daily_money', 'cash_only']:
             flash("Invalid field to update", "danger")

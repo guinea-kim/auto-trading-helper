@@ -312,6 +312,7 @@
                         <th>보유 수량</th>
                         <th>종가</th>
                         <th>수익률</th>
+                        <th>고점 대비</th>
                         <th>작업</th>
                     </tr>
                 </thead>
@@ -375,6 +376,16 @@
                                 {% set profit_percent = ((rule.last_price - rule.average_price) / rule.average_price * 100)|float %}
                                 <span class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
                                     {{ "{:.2f}%".format(profit_percent) }}
+                                </span>
+                            {% else %}
+                                N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if rule.last_price and rule.high_price and rule.high_price > 0 %}
+                                {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price * 100)|float %}
+                                <span class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
+                                    {{ "{:.2f}%".format(drop_percent) }}
                                 </span>
                             {% else %}
                                 N/A

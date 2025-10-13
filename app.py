@@ -177,6 +177,12 @@ def update_rule_status(rule_id):
     return redirect(url_for('index', market=market))
 
 
+@app.route('/api/highest-price/<symbol>', methods=['GET'])
+def get_highest_price(symbol):
+    # US market만 지원
+    highest_price = us_db_handler.get_highest_price(symbol)
+    return {'symbol': symbol, 'highest_price': highest_price}
+
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):
     value = request.form.get('value')

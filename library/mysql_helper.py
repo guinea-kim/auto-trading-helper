@@ -10,7 +10,6 @@ class DatabaseHandler:
         self.setup_db_names()
 
 
-
     def setup_db_names(self):
         self.engine = self.create_engine_for_db(self.db_name)
 
@@ -225,6 +224,7 @@ class DatabaseHandler:
                 "rule_id": rule_id
             })
             conn.commit()
+
     def update_current_price_quantity(self, rule_id: int, last_price: float, current_holding: int, average_price: float, high_price: float = 0) -> None:
         """거래 규칙 상태와 가격정보 업데이트"""
         sql = """
@@ -271,12 +271,12 @@ class DatabaseHandler:
             conn.commit()
 
     def add_trading_rule(self, account_id: str, symbol: str, limit_value: float, limit_type: str,
-                         target_amount: int, daily_money: float, trade_action: str, cash_only: int) -> None:
+                         target_amount: int, daily_money: float, trade_action: str) -> None:
         """새 거래 규칙 추가"""
         sql = """
                INSERT INTO trading_rules 
-               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
-               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
+               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action)
+               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -286,18 +286,17 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action,
-                "cash_only": cash_only
+                "trade_action": trade_action
             })
             conn.commit()
 
     def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str, limit_value: int, limit_type: str,
-                            target_amount: int, daily_money: int, trade_action: str, cash_only: int) -> None:
+                            target_amount: int, daily_money: int, trade_action: str) -> None:
         """한국주식 거래 규칙 추가"""
         sql = """
             INSERT INTO trading_rules 
-            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
-            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
+            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action)
+            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
         """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -308,8 +307,7 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action,
-                "cash_only": cash_only
+                "trade_action": trade_action
             })
             conn.commit()
     def add_daily_result(self, today, account_id, cash_balance, total_value, etfs):
@@ -360,6 +358,17 @@ class DatabaseHandler:
             num = result[0] if result else 0
 
         return f"{user_id}_{num}"
+    
+    def get_highest_price(self, symbol: str) -> float:
+        """특정 symbol에 대한 가장 높은 high_price 값을 반환"""
+        sql = """
+            SELECT MAX(high_price) as max_high_price
+            FROM trading_rules
+            WHERE symbol = :symbol
+        """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql), {"symbol": symbol}).fetchone()
+            return float(result.max_high_price) if result and result.max_high_price is not None else 0.0
 
     def get_consolidated_portfolio_allocation(self):
         """모든 계좌의 종목들을 합쳐서 종목별 비중 조회 (계좌 상관없이 종목별로 합산)"""

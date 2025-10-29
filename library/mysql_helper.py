@@ -271,12 +271,12 @@ class DatabaseHandler:
             conn.commit()
 
     def add_trading_rule(self, account_id: str, symbol: str, limit_value: float, limit_type: str,
-                         target_amount: int, daily_money: float, trade_action: str) -> None:
+                         target_amount: int, daily_money: float, trade_action: str, cash_only: int) -> None:
         """새 거래 규칙 추가"""
         sql = """
                INSERT INTO trading_rules 
-               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action)
-               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
+               (account_id, symbol, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
+               VALUES (:account_id, :symbol, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -286,17 +286,18 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action
+                "trade_action": trade_action,
+                "cash_only": cash_only
             })
             conn.commit()
 
     def add_kr_trading_rule(self, account_id: str, symbol: str, stock_name: str, limit_value: int, limit_type: str,
-                            target_amount: int, daily_money: int, trade_action: str) -> None:
+                            target_amount: int, daily_money: int, trade_action: str, cash_only: int) -> None:
         """한국주식 거래 규칙 추가"""
         sql = """
             INSERT INTO trading_rules 
-            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action)
-            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action)
+            (account_id, symbol, stock_name, limit_value, limit_type, target_amount, daily_money, trade_action, cash_only)
+            VALUES (:account_id, :symbol, :stock_name, :limit_value, :limit_type, :target_amount, :daily_money, :trade_action, :cash_only)
         """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
@@ -307,7 +308,8 @@ class DatabaseHandler:
                 "limit_type": limit_type,
                 "target_amount": target_amount,
                 "daily_money": daily_money,
-                "trade_action": trade_action
+                "trade_action": trade_action,
+                "cash_only": cash_only
             })
             conn.commit()
     def add_daily_result(self, today, account_id, cash_balance, total_value, etfs):

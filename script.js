@@ -15,6 +15,7 @@ const execPromise = promisify(exec);
 const process = require('process');
 // 로거 모듈 가져오기
 const logger = require('./logger');
+const nodemailer = require("nodemailer");
 
 // Global variables
 let authorizationCode;
@@ -335,6 +336,7 @@ async function automateLogin(config) {
     logger.info("Puppeteer automation completed.");
   } catch (error) {
     logger.error(`Error during automation: ${error}`);
+    throw error
   } finally {
     await browser.close();
   }
@@ -448,6 +450,7 @@ async function processUser(userId) {
     }
   } catch (error) {
     logger.error(`Error processing user ${userId}: ${error}`);
+    await sendErrorToEmail(error);
     await closeServer();
     return false;
   }
@@ -569,7 +572,40 @@ async function sendEmailNotification(successCount, totalUsers) {
     console.error('이메일 전송 중 오류 발생:', error);
   }
 }
+async function sendErrorToEmail(message) {
+  const nodemailer = require('nodemailer');
+  let emailSecrets;
 
+  try {
+    emailSecrets = await getEmailSecretsFromPython();
+  } catch (error) {
+    console.error('이메일 비밀 정보를 가져오는 데 실패했습니다. 이메일 전송을 중단합니다.', error);
+    return;
+  }
+
+  let transporter = nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: emailSecrets.alert_email,
+      pass: emailSecrets.alert_password
+    }
+  });
+
+  // 메일 옵션 설정
+  let mailOptions = {
+    from: emailSecrets.alert_email,
+    to: emailSecrets.alerted_email,
+    subject: 'token 발행 중 에러',
+    text: `${message}\n`
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log('이메일이 성공적으로 전송되었습니다.');
+  } catch (error) {
+    console.error('이메일 전송 중 오류 발생:', error);
+  }
+}
 // Run the main function
 main().catch(error => {
   logger.error(`Fatal error in main process: ${error}`);

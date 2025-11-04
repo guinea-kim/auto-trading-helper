@@ -36,13 +36,14 @@ def MakeToken(user):
             json.dump(dataDict, outfile)
 
         print("TOKEN : ", my_token)
+        alert.SendMessage("Generate Korea Token")
     else:
         print('Get Authentification token fail!')
 
 time_info = time.gmtime()
 m_hour = time_info.tm_hour
 
-alert.SendMessage("Generate Korea Token")
+
 db_handler = DatabaseHandler(secret.db_name_kr)
 users = db_handler.get_users()
 for user in users:

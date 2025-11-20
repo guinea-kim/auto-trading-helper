@@ -246,6 +246,90 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             self.logger.error(f"Error updating market hours: {str(e)}")
             return True
 
+    def sync_split_adjustments(self, user_id: str):
+        """
+        장 시작 전 액면분할/병합 체크 및 DB 업데이트
+        증권사 평단가와 DB 평단가를 비교하여 비율만큼 high_price와 target_amount를 조정
+        """
+        self.logger.info(f"Checking for stock splits/merges for user {user_id}")
+        manager = self.get_manager(user_id)
+
+        # 1. 현재 증권사의 상세 잔고(평단가 포함) 가져오기
+        try:
+            hash_list = self.db_handler.get_hash_value(user_id)
+            current_positions = {}  # {(hash, symbol): position_data}
+
+            for hash_value in hash_list:
+                # get_positions_result는 평단가(average_price)를 포함한 상세 데이터를 반환한다고 가정
+                positions = manager.get_positions_result(hash_value)
+                for symbol, data in positions.items():
+                    current_positions[(hash_value, symbol)] = data
+
+        except Exception as e:
+            self.logger.error(f"Failed to fetch positions for split check: {e}")
+            return
+
+        # 2. DB에 저장된 활성 규칙 가져오기
+        rules = self.db_handler.get_active_trading_rules()
+
+        for rule in rules:
+            if rule['user_id'] != user_id:
+                continue
+
+            key = (rule['hash_value'], rule['symbol'])
+
+            # 증권사 데이터에서 해당 종목 찾기
+            broker_data = current_positions.get(key)
+
+            if not broker_data:
+                continue
+
+            # 3. 데이터 추출 및 분할/병합 판단
+            broker_avg_price = float(broker_data['average_price'])
+            broker_quantity = float(broker_data['quantity'])
+
+            db_avg_price = float(rule['average_price'])
+            db_quantity = float(rule.get('current_quantity', 0))
+
+            is_split_or_merge = False
+
+            # 판단 기준: 기존 평단가가 0이 아니며(보유 종목), 수량 차이가 0.001 이상인 경우
+            if db_avg_price > 0 and abs(broker_quantity - db_quantity) > 0.001:
+                is_split_or_merge = True
+
+
+            if is_split_or_merge:
+                # 보정 계산을 위한 비율 (Ratio)은 여전히 평단가 변화율로 계산합니다.
+                if db_avg_price == 0 or broker_avg_price == 0:
+                    self.logger.warning(
+                        f"Split detected for {rule['symbol']} but avg price is 0. Skipping rule adjustment."
+                    )
+                    continue
+
+                ratio = broker_avg_price / db_avg_price
+                self.logger.warning(f"Split/Merge detected for {rule['symbol']} (Rule ID: {rule['id']})")
+                self.logger.warning(f"Avg Price changed: {db_avg_price} -> {broker_avg_price} (Ratio: {ratio:.4f})")
+
+                # 값 보정
+                new_high_price = float(rule.get('high_price', 0)) * ratio
+
+                # 수량은 가격과 반비례하므로 비율로 나눠줌 (가격 1/10토막 -> 수량 10배)
+                current_target = float(rule['target_amount'])
+                new_target_amount = int(current_target / ratio)
+
+                self.logger.info(f"Adjusting High Price: {rule.get('high_price')} -> {new_high_price}")
+                self.logger.info(f"Adjusting Target Amount: {current_target} -> {new_target_amount}")
+
+                # DB 업데이트
+                # update_rule_split_info 메서드는 DB Handler에 새로 추가해야 함
+                # 혹은 기존 update 메서드들을 조합해서 사용
+                self.db_handler.update_split_adjustment(
+                    rule_id=rule['id'],
+                    new_avg_price=broker_avg_price,
+                    new_high_price=new_high_price,
+                    new_target_amount=new_target_amount,
+                    new_current_quantity=float(broker_data['quantity'])
+                )
     def process_trading_rules(self):
         """모든 유저의 모든 계좌의 거래 규칙 처리"""
         self.logger.info("Starting trading rule processing")
@@ -256,6 +340,11 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         # 각 유저의 각 계좌별 포지션 로드
         users = self.db_handler.get_users()
         for user in users:
+            # 1. 상세 데이터 로드 (평단가 확인용)
+            self.get_positions(user)
+            # 2. 분할/병합 체크 및 DB 보정
+            self.sync_split_adjustments(user)
+            # 3. 매매 로직용 데이터 로드
             self.load_daily_positions(user)
 
         while self.is_market_open():

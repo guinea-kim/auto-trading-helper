@@ -253,7 +253,27 @@ class DatabaseHandler:
 
     
 
-        # 웹 인터페이스를 위한 추가 메서드
+    def update_split_adjustment(self, rule_id, new_avg_price, new_high_price, new_target_amount,
+                                new_current_quantity):
+        with self.engine.connect() as conn:
+            """액면분할/병합 반영 업데이트"""
+            sql = """
+                UPDATE trading_rules 
+                SET average_price = :average_price,
+                    high_price = :high_price,
+                    target_amount = :target_amount,
+                    current_quantity = :current_quantity,
+                    updated_at = NOW()
+                    WHERE id = :rule_id
+            """
+            conn.execute(text(sql), {
+                "average_price": new_avg_price,
+                "high_price": new_high_price,
+                "target_amount": new_target_amount,
+                "current_quantity": new_current_quantity,
+                "rule_id": rule_id
+            })
+            conn.commit()
 
     def add_account(self, account_id: str, user_id: str, account_number: str, description: str) -> None:
         """새 계정 추가"""

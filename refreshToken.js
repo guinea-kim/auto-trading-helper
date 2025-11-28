@@ -157,7 +157,7 @@ async function refreshAuthToken(userId) {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${base64Credentials}`,
       },
-      data: `grant_type=refresh_token&refresh_token=${oldRefreshToken}`,
+      data: `grant_type=refresh_code&refresh_token=${oldRefreshToken}`,
     });
 
     // 4. 새 토큰 정보 파일에 저장 (기존 함수 재사용)
@@ -178,7 +178,47 @@ async function refreshAuthToken(userId) {
     throw error;
   }
 }
+async function exchangeCodeForToken(userId, authCode) {
+  logger.info(`*** EXCHANGING AUTH CODE FOR TOKEN for ${userId} ***`);
 
+  // 1. App Key/Secret 가져오기
+  const { clientId, clientSecret } = await getUserAuthConfig(userId);
+  const base64Credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+
+  // 2. URL에서 복사한 'code' 값 디코딩 (예: %40 -> @)
+  const decodedCode = decodeURIComponent(authCode);
+  if (authCode !== decodedCode) {
+      logger.info(`Decoded auth code (original: ${authCode.substring(0, 10)}... )`);
+  }
+
+  // 3. 토큰 발급 API 호출 (grant_type=authorization_code)
+  try {
+    const response = await axios({
+      method: "POST",
+      url: "https://api.schwabapi.com/v1/oauth/token",
+      headers: {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": `Basic ${base64Credentials}`,
+      },
+      // grant_type과 파라미터가 refresh와 다릅니다.
+      data: `grant_type=authorization_code&code=${decodedCode}&redirect_uri=https://127.0.0.1:8182`,
+    });
+
+    // 4. 새 토큰 정보 파일에 저장 (기존 함수 재사용)
+    saveTokensToFile(userId, response.data);
+
+    logger.info(`Successfully exchanged code and saved new tokens for ${userId}.`);
+    logger.info(`New Access Token (expires in ${response.data.expires_in}s): ${response.data.access_token.substring(0, 10)}...`);
+    logger.info(`New Refresh Token: ${response.data.refresh_token.substring(0, 10)}...`);
+
+    return response.data; // 성공
+
+  } catch (error) {
+    const errorMsg = error.response ? JSON.stringify(error.response.data) : error.message;
+    logger.error(`Error exchanging code for ${userId}: ${errorMsg}`);
+    throw error;
+  }
+}
 // -----------------------------------------------------------------------------
 // 스크립트 실행 (Main)
 // -----------------------------------------------------------------------------
@@ -210,10 +250,10 @@ async function main() {
   }
 
   const successCount = Object.values(results).filter(Boolean).length;
-  logger.info(`\nCompleted: ${successCount}/${usersToProcess.length} users processed successfully`);
+  logger.info(`\nCompleted: ${successCount}/${userIds.length} users processed successfully`);
   if (successCount !== userIds.length) {
     console.log("처리된 사용자 수와 전체 사용자 수가 일치하지 않습니다. 이메일을 보냅니다.");
-    await sendEmailNotification(successCount, usersToProcess.length);
+    await sendEmailNotification(successCount, userIds.length);
   }
 
   process.exit();
@@ -221,4 +261,38 @@ async function main() {
 }
 
 // 스크립트 실행
-main();
+(async () => {
+  // process.argv[0] = node, process.argv[1] = refreshToken.js
+  // process.argv[2] 부터 실제 인자가 시작됩니다.
+  const args = process.argv.slice(2);
+
+  // 모드 1: 수동 코드 교환 (인자가 2개: userId, code)
+  // 예: node refreshToken.js guinea C0.b2F1...
+  if (args.length === 2) {
+    const userId = args[0];
+    const authCode = args[1];
+
+    logger.info(`Running in "Code Exchange" mode for user: ${userId}`);
+    try {
+      await exchangeCodeForToken(userId, authCode);
+      logger.info(`Successfully processed code for ${userId}. Exiting.`);
+      process.exit(0); // 성공 종료
+    } catch (err) {
+      logger.error(`Failed to process code for ${userId}. Exiting with error.`);
+      process.exit(1); // 에러 종료
+    }
+  }
+  // 모드 2: 정기 갱신 (인자가 0개 - 기존 방식)
+  // 예: node refreshToken.js
+  else if (args.length === 0) {
+    logger.info('Running in "Refresh All" mode.');
+    await main(); // 기존의 '모든 사용자 갱신' 로직 실행
+  }
+  // 잘못된 사용법
+  else {
+    logger.error("Invalid usage.");
+    logger.info("To refresh all tokens: node refreshToken.js");
+    logger.info("To exchange a new code: node refreshToken.js <userId> <auth_code>");
+    process.exit(1);
+  }
+})();

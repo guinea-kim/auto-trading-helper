@@ -201,6 +201,28 @@ def get_highest_price(symbol):
     highest_price = us_db_handler.get_highest_price(symbol)
     return {'symbol': symbol, 'highest_price': highest_price}
 
+
+@app.route('/api/daily-assets', methods=['GET'])
+def get_daily_assets():
+    market = request.args.get('market', 'us')  # 기본값 'us', 한국은 'kr'
+    
+    # Select DB Handler based on market type
+    if market == 'kr':
+        current_db_handler = kr_db_handler
+    else:
+        current_db_handler = us_db_handler
+
+    # Fetch all daily records (limit to 10000 days to get mostly everything)
+    daily_data_list = current_db_handler.get_daily_total_values(max_points=10000)
+    
+    # Transform list to dictionary: { "YYYY-MM-DD": value }
+    asset_data = {}
+    for item in daily_data_list:
+        # mysql_helper returns date string in 'YYYY-MM-DD' format
+        asset_data[item['record_date']] = item['total_value']
+        
+    return asset_data
+
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):
     value = request.form.get('value')

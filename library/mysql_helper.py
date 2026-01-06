@@ -156,17 +156,18 @@ class DatabaseHandler:
                 "used_money": price*quantity
             })
             conn.commit()
-    def update_account_hash(self, account_number: str, hash_value: str) -> None:
+    def update_account_hash(self, account_number: str, hash_value: str, user_id: str) -> None:
         """계좌 hash값 업데이트"""
         sql = """
                UPDATE accounts 
                SET hash_value = :hash_value 
-               WHERE account_number = :account_number
+               WHERE account_number = :account_number and user_id = :user_id
            """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "hash_value": hash_value,
-                "account_number": account_number
+                "account_number": account_number,
+                "user_id": user_id
             })
             conn.commit()
 

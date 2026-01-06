@@ -42,13 +42,23 @@
 
 #### 1.3. `trade_history`
 실행된 모든 매매 로그입니다.
+**주의**: 기록된 `quantity`와 `price`는 **주문 요청된** 값이며, 실제 체결 값과 다를 수 있습니다. 이는 당일 **중복 주문 방지**를 위해 사용되기 때문입니다. 따라서 과거 날짜의 체결되지 않은 주문 데이터가 남아있을 수 있습니다.
 | Column | Type | Description |
 |--------|------|-------------|
 | `order_id` | VARCHAR | 증권사 주문 ID |
 | `trade_type` | ENUM | `BUY`, `SELL` |
-| `quantity` | INT | 체결 수량 |
-| `price` | DECIMAL | 체결 가격 |
+| `quantity` | INT | 주문 수량 (요청 값) |
+| `price` | DECIMAL | 주문 가격 (요청 값) |
 | `used_money` | DECIMAL | 총 거래 금액 (`price * quantity`) |
+#### 1.4. `daily_records`
+일일 자산 스냅샷을 저장하는 테이블입니다. (운영 섹션 참고)
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT (PK) | 자동 증가 ID |
+| `record_date` | DATE | 기록 날짜 |
+| `account_id` | VARCHAR(20) | 계좌 ID |
+| `symbol` | VARCHAR | 종목 심볼 (또는 `total`, `cash`) |
+| `amount` | DECIMAL | 가치 금액 (평가금액) |
 
 ### 국가별 차이점 (Regional Differences)
 | Feature | US DB (`helper_db`) | KR DB (`helper_kr_db`) |
@@ -66,7 +76,7 @@
 | Type | Condition Logic | Description |
 |------|----------------|-------------|
 | **`price`** | `Current Price <= limit_value` | 특정 가격 이하일 때 지정가 매수. |
-| **`percent`** | `Current Price <= Average Price * (1 - limit_value/100)` | 평단가 대비 X% 하락 시 매수 (물타기). |
+| **`percent`** | `Current Price <= Average Price * (1 - limit_value/100)` | 평단가 대비 X% 하락 시 매수 (물타기). <br> **※ 평단가 0일 경우**: 매수는 시장가(현재가)로 진행하며, 보유량이 없으므로 매도는 시도하지 않음. |
 | **`high_percent`**| `Current Price <= High Price * (1 - limit_value/100)` | **Trailing Buy**: 기록된 고점 대비 X% 하락 시 매수. |
 | **`weekly`** | `Current Day == limit_value (0=Mon...6=Sun)` | 매주 특정 요일에 매수. |
 | **`monthly`** | `Current Date == limit_value (1-31)` | 매월 특정 날짜에 매수. |
@@ -88,10 +98,10 @@
 
 ## 3. 운영 (Operations)
 ### 일일 스냅샷 (`daily_records`)
-시스템은 매일 다음 항목에 대한 스냅샷을 기록합니다:
+시스템은 매일 다음 항목에 대한 스냅샷을 기록합니다. 이는 개별 계좌 단위로 기록되며, 계좌별 자금 상황 추적을 위함입니다:
 1.  **총 자산 가치**: Symbol `total`
 2.  **현금 잔고 (예수금)**: Symbol `cash`
-3.  **주요 ETF 보유량**: `BIL`, `SGOV` (현금성 자산)를 별도로 추적.
+3.  **모든 보유 종목**: ETF(`BIL`, `SGOV`)뿐만 아니라 **모든 보유 주식**에 대해 평가금액을 기록합니다.
 
 ### 애플리케이션 사용 (Application Usage)
 - **Python**: `library/mysql_helper.py`가 커넥션 풀링 및 쿼리 실행을 처리합니다.

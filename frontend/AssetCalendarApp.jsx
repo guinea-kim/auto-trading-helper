@@ -226,46 +226,41 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 <div
                     key={key}
                     onClick={() => handleDateClick(key)}
-                    className={`h-16 md:h-20 border-r border-b ${border} relative cursor-pointer transition-all hover:bg-opacity-90 ${cellBgClass} group ${isToday ? 'ring-2 ring-inset ring-amber-400 z-10' : ''}`}
+                    className={`h-16 md:h-20 relative cursor-pointer transition-all hover:bg-opacity-90 ${cellBgClass} group ${isToday ? 'ring-2 ring-inset ring-amber-400 z-10' : ''}`}
                 >
                     <div className="absolute top-1 left-2 flex items-baseline gap-1 z-10">
-                        <span className={`text-[10px] font-medium ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'}`}>
+                        <span className={`text-[10px] font-medium ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
                             {date.getMonth() + 1}/{date.getDate()}
                         </span>
                         {/* 휴일/Filled 표시 (옵션) - 지금은 숨김 */}
                     </div>
 
+                    {/* Center: Percent Change Only (High Contrast, Large Text) */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-1">
                         {/* filledDates에 포함되면 변동률 숨김 */}
                         {!filledDates.has(key) && hasChange ? (
-                            <div className={`
-                                flex items-center justify-center 
-                                px-1.5 py-0.5 rounded-md shadow-sm 
-                                bg-white/60 backdrop-blur-[1px] border border-white/40
-                                transition-transform group-hover:scale-105
-                            `}>
-                                <span className={`text-lg md:text-xl font-extrabold tracking-tight leading-none ${text}`}>
-                                    {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
-                                </span>
-                            </div>
+                            <span className={`text-2xl md:text-3xl font-black tracking-tighter leading-none ${text} drop-shadow-sm scale-110`}>
+                                {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
+                            </span>
                         ) : currentValue !== undefined && !filledDates.has(key) ? (
                             <span className="text-gray-300 text-sm font-bold">-</span>
                         ) : (
                             // Filled date or no value
-                            <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-lg font-light transition-opacity"></span>
+                            <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-base font-light transition-opacity">+</span>
                         )}
                     </div>
 
+                    {/* Bottom Right: Change Amount & Total Value */}
                     {currentValue !== undefined && (
-                        <div className="absolute bottom-1 right-2 text-right flex flex-col items-end justify-end pointer-events-none">
+                        <div className="absolute bottom-1 right-2 text-right flex flex-col items-end justify-end pointer-events-none gap-px">
                             {/* filledDates에 포함되면 변동액 숨김 */}
                             {!filledDates.has(key) && hasChange && (
-                                <span className={`text-[9px] font-bold tabular-nums leading-none mb-0.5 ${text} opacity-90`}>
-                                    {diffValue > 0 ? '+' : diffValue < 0 ? '-' : ''}{formatMoney(Math.abs(diffValue), false)}
+                                <span className={`text-[8px] md:text-[9px] font-bold tabular-nums leading-none ${text} opacity-90`}>
+                                    {diffValue > 0 ? '+' : diffValue < 0 ? '-' : ''}{formatMoney(Math.abs(diffValue), true)}
                                 </span>
                             )}
-                            <span className={`text-[9px] md:text-[10px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-500'}`}>
-                                {formatMoney(currentValue, false)}
+                            <span className={`text-[8px] md:text-[9px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-400'}`}>
+                                {formatMoney(currentValue, true)}
                             </span>
                         </div>
                     )}
@@ -495,12 +490,12 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
 
                 {/* 캘린더 그리드 (5주 뷰) */}
                 <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-7 bg-gray-50/80 border-b border-gray-200">
+                    <div className="grid grid-cols-7 bg-gray-300 gap-px border-b border-gray-300">
                         {['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'].map((day, i) => (
-                            <div key={day} className={`py-1.5 text-center text-[9px] font-bold tracking-wider ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`}>{day}</div>
+                            <div key={day} className={`bg-gray-50/80 py-1.5 text-center text-[9px] font-bold tracking-wider ${i === 0 ? 'text-red-400' : i === 6 ? 'text-blue-400' : 'text-gray-400'}`}>{day}</div>
                         ))}
                     </div>
-                    <div className="grid grid-cols-7">
+                    <div className="grid grid-cols-7 gap-px bg-gray-300">
                         {renderCalendarCells()}
                     </div>
                 </div>

@@ -66,7 +66,7 @@ class TradingSystem:
         try:
             account_hashs = manager.get_hashs()
             for account_number, hash_value in account_hashs.items():
-                self.db_handler.update_account_hash(account_number, hash_value)
+                self.db_handler.update_account_hash(account_number, hash_value, user_id)
 
                 # 재시도 로직 적용
                 retry_count = 0
@@ -108,6 +108,7 @@ class TradingSystem:
                 self.logger.debug(f"Retrieved positions for hash {hash_value}: {positions}")
         except Exception as e:
             self.logger.error(f"Error getting positions for user {user_id}: {str(e)}")
+            raise
 
     def place_buy_order(self, rule: dict, quantity: int, price: float):
         self.logger.info(f"Placing buy order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
@@ -289,7 +290,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             broker_quantity = float(broker_data['quantity'])
 
             db_avg_price = float(rule['average_price'])
-            db_quantity = float(rule.get('current_quantity', 0))
+            db_quantity = float(rule.get('current_holding', 0))
 
             is_split_or_merge = False
 
@@ -475,7 +476,9 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             hash_value = rule['hash_value']
             symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
 
-            if hash_value not in self.positions_result_by_account or symbol not in self.positions_result_by_account[
+            if hash_value not in self.positions_result_by_account:
+                continue
+            if symbol not in self.positions_result_by_account[
                 hash_value]:
                 self.logger.warning(f"No position data for rule {rule_id}, symbol {symbol}, hash {hash_value}")
                 try:

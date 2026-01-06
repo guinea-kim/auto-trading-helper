@@ -122,20 +122,10 @@
                     <a class="nav-link {% if current_market == 'us' %}active{% endif %}" href="?market=us">미국 주식</a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link {% if current_market == 'us-calendar' %}active{% endif %}" href="?market=us-calendar">미국 (Calendar)</a>
-                </li>
-                <li class="nav-item">
                     <a class="nav-link {% if current_market == 'kr' %}active{% endif %}" href="?market=kr">한국 주식</a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link {% if current_market == 'kr-calendar' %}active{% endif %}" href="?market=kr-calendar">한국 (Calendar)</a>
                 </li>
             </ul>
         </div>
-        {% if show_calendar %}
-            <div id="react-root"></div>
-            <script src="{{ url_for('static', filename='js/calendar.bundle.js') }}"></script>
-        {% else %}
          <!-- Portfolio Summary Section with Fixed Calculation -->
         <div class="portfolio-summary">
             <h3 class="text-center mb-4">포트폴리오 요약</h3>
@@ -187,6 +177,10 @@
                 </div>
             </div>
         </div>
+
+        <div id="react-root" class="mb-4"></div>
+        <script src="{{ url_for('static', filename='js/calendar.bundle.js') }}"></script>
+
         <!-- Daily Total Value Chart -->
         {% if daily_total_values %}
         <div class="chart-container">
@@ -501,7 +495,6 @@
                                     <option value="monthly">월간 정기</option>
                                 </select>
                             </div>
-
                             <div class="form-text">가격(예: 100.00) / 퍼센트(예: 5.0) / 주간: 0(월)~6(일) / 월간: 1~31 중 선택</div>
                         </div>
 
@@ -626,8 +619,7 @@
             });
         });
     </script>
-    {% endif %}
-    <!-- Chart.js Script -->
+ <!-- Chart.js Script -->
     {% if daily_total_values %}
     <script>
         // 차트 데이터 준비

@@ -5,15 +5,22 @@
   "main": "script.js",
   "scripts": {
     "start": "node script.js",
-    "refresh": "node refreshToken.js"
+    "refresh": "node refreshToken.js",
+    "build-react": "esbuild frontend/index.jsx --bundle --outfile=static/js/calendar.bundle.js --minify --loader:.js=jsx --loader:.jsx=jsx"
   },
   "dependencies": {
     "axios": "^1.6.0",
     "express": "^4.18.2",
+    "lucide-react": "^0.471.0",
+    "nodemailer": "^6.9.14",
     "puppeteer": "^24.4.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "winston": "^3.8.2",
-    "nodemailer": "^6.9.14"
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "winston": "^3.8.2"
+  },
+  "devDependencies": {
+    "esbuild": "^0.19.11"
   }
 }

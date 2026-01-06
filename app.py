@@ -7,8 +7,20 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", secret.app_secret)
 
 # DB Handler 인스턴스 생성
-us_db_handler = DatabaseHandler(secret.db_name)
-kr_db_handler = DatabaseHandler(secret.db_name_kr)
+# DB Handler 인스턴스 생성
+try:
+    us_db_handler = DatabaseHandler(secret.db_name)
+    kr_db_handler = DatabaseHandler(secret.db_name_kr)
+except Exception as e:
+    print(f"Warning: DB Connection failed ({e}). Starting in Offline Mode with Mock Data.")
+    class MockHandler:
+        def get_accounts(self): return []
+        def get_trading_rules(self): return []
+        def get_consolidated_portfolio_allocation(self): return [], 0
+        def get_daily_total_values(self, n): return []
+        def get_users(self): return []
+    us_db_handler = MockHandler()
+    kr_db_handler = MockHandler()
 
 
 # Routes
@@ -16,7 +28,14 @@ kr_db_handler = DatabaseHandler(secret.db_name_kr)
 @app.route('/')
 def index():
     market = request.args.get('market', 'us')  # 기본값 'us', 한국은 'kr'
-    current_db_handler = us_db_handler if market == 'us' else kr_db_handler
+    
+    show_calendar = False
+    if market in ['us-calendar', 'kr-calendar']:
+        show_calendar = True
+        # Calendar view doesn't rely on existing DB logic for now (uses local storage as per requirement)
+        # But we still need basic template vars to prevent errors if we reuse the layout
+    
+    current_db_handler = us_db_handler if 'kr' not in market else kr_db_handler # Fallback logic for DB handler
 
     # 데이터 가져오기
     accounts = current_db_handler.get_accounts()
@@ -49,7 +68,8 @@ def index():
                            total_profit=total_profit,
                            profit_percent=profit_percent,
                            is_kr_market=is_kr_market,
-                           daily_total_values=daily_total_values)
+                           daily_total_values=daily_total_values,
+                           show_calendar=show_calendar)
 
 
 @app.route('/account/add', methods=['POST'])

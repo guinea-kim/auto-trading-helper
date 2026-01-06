@@ -15,44 +15,33 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     const [hoveredMonthStats, setHoveredMonthStats] = useState(null);
     const [isMockData, setIsMockData] = useState(false);
 
-    // --- 초기 로드 (Local Storage) ---
+    // --- 초기 로드 (API Fetch) ---
     useEffect(() => {
-        const savedData = localStorage.getItem('myAssetData');
-        if (savedData) {
+        const fetchAssetData = async () => {
             try {
-                setAssetData(JSON.parse(savedData));
-            } catch (e) {
-                console.error("데이터 로딩 실패", e);
+                const marketParam = currency === 'KRW' ? 'kr' : 'us';
+                const response = await fetch(`/api/daily-assets?market=${marketParam}`);
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                const data = await response.json();
+                setAssetData(data);
+                setIsMockData(false);
+            } catch (error) {
+                console.error("데이터 로딩 실패:", error);
+                // 에러 발생 시 빈 객체 혹은 기존 데이터 유지 (혹은 사용자 알림)
             }
-        } else {
-            // 데모 데이터 (USD 기준 생성)
-            const demoData = {};
-            const today = new Date();
-            let value = 10000; // 1만 달러 시작
-            const startDate = new Date(today);
-            startDate.setDate(today.getDate() - 400);
+        };
 
-            let currentValue = 10000;
-            for (let i = 0; i <= 400; i++) {
-                const d = new Date(startDate);
-                d.setDate(startDate.getDate() + i);
-                const key = d.toISOString().split('T')[0];
+        fetchAssetData();
+    }, [currency]); // currency가 바뀔 때마다 다시 fetch
 
-                const trend = 1.0005;
-                const volatility = (Math.random() - 0.48) * 0.03;
-
-                currentValue = currentValue * trend * (1 + volatility);
-                demoData[key] = Math.round(currentValue);
-            }
-            setAssetData(demoData);
-            setIsMockData(true);
-        }
-    }, []);
-
-    // --- 데이터 저장 ---
+    // --- 데이터 저장 (수정 불가) ---
     const saveAssetData = (newData) => {
+        // API 연동 모드에서는 클라이언트 사이드 저장을 비활성화합니다.
+        // 추후 서버 API에 POST 요청을 보내는 것으로 대체 가능
         setAssetData(newData);
-        localStorage.setItem('myAssetData', JSON.stringify(newData));
+        console.warn("Client-side save is disabled in API mode.");
     };
 
     // --- 헬퍼 함수: 금액 포맷팅 (핵심) ---

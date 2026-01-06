@@ -157,7 +157,7 @@ async function refreshAuthToken(userId) {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${base64Credentials}`,
       },
-      data: `grant_type=refresh_code&refresh_token=${oldRefreshToken}`,
+      data: `grant_type=refresh_token&refresh_token=${oldRefreshToken}`,
     });
 
     // 4. 새 토큰 정보 파일에 저장 (기존 함수 재사용)

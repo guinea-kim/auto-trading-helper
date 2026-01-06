@@ -501,7 +501,7 @@
                                     <option value="monthly">월간 정기</option>
                                 </select>
                             </div>
-        {% endif %}
+
                             <div class="form-text">가격(예: 100.00) / 퍼센트(예: 5.0) / 주간: 0(월)~6(일) / 월간: 1~31 중 선택</div>
                         </div>
 
@@ -626,7 +626,8 @@
             });
         });
     </script>
- <!-- Chart.js Script -->
+    {% endif %}
+    <!-- Chart.js Script -->
     {% if daily_total_values %}
     <script>
         // 차트 데이터 준비

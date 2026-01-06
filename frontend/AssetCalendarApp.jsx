@@ -14,6 +14,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [hoveredMonthStats, setHoveredMonthStats] = useState(null);
     const [isMockData, setIsMockData] = useState(false);
+    const [filledDates, setFilledDates] = useState(new Set()); // Auto-filled dates (holidays)
 
     // --- 초기 로드 (API Fetch) ---
     useEffect(() => {
@@ -24,8 +25,39 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                const data = await response.json();
-                setAssetData(data);
+                const rawData = await response.json();
+
+                // --- 데이터 전처리 (Gap Filling) ---
+                const processedData = { ...rawData };
+                const filledIndices = new Set();
+
+                // 날짜 정렬 (오름차순)
+                const sortedKeys = Object.keys(rawData).sort();
+                if (sortedKeys.length > 0) {
+                    const startDate = new Date(sortedKeys[0]);
+                    const today = new Date();
+                    // 오늘날짜까지만 채움 (미래 날짜 제외)
+
+                    let currentDateIterator = new Date(startDate);
+                    let lastValue = rawData[sortedKeys[0]];
+
+                    while (currentDateIterator <= today) {
+                        const dateKey = currentDateIterator.toISOString().split('T')[0];
+
+                        if (processedData[dateKey] !== undefined) {
+                            lastValue = processedData[dateKey];
+                        } else {
+                            // 데이터가 비어있으면 이전 값으로 채움
+                            processedData[dateKey] = lastValue;
+                            filledIndices.add(dateKey);
+                        }
+
+                        currentDateIterator.setDate(currentDateIterator.getDate() + 1);
+                    }
+                }
+
+                setAssetData(processedData);
+                setFilledDates(filledIndices);
                 setIsMockData(false);
             } catch (error) {
                 console.error("데이터 로딩 실패:", error);
@@ -200,10 +232,12 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                         <span className={`text-[10px] font-medium ${isToday ? 'text-amber-600 font-bold' : 'text-gray-400'}`}>
                             {date.getMonth() + 1}/{date.getDate()}
                         </span>
+                        {/* 휴일/Filled 표시 (옵션) - 지금은 숨김 */}
                     </div>
 
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-1">
-                        {hasChange ? (
+                        {/* filledDates에 포함되면 변동률 숨김 */}
+                        {!filledDates.has(key) && hasChange ? (
                             <div className={`
                                 flex items-center justify-center 
                                 px-1.5 py-0.5 rounded-md shadow-sm 
@@ -214,21 +248,23 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                                     {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
                                 </span>
                             </div>
-                        ) : currentValue !== undefined ? (
+                        ) : currentValue !== undefined && !filledDates.has(key) ? (
                             <span className="text-gray-300 text-sm font-bold">-</span>
                         ) : (
-                            <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-lg font-light transition-opacity">+</span>
+                            // Filled date or no value
+                            <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-lg font-light transition-opacity"></span>
                         )}
                     </div>
 
                     {currentValue !== undefined && (
                         <div className="absolute bottom-1 right-2 text-right flex flex-col items-end justify-end pointer-events-none">
-                            {hasChange && (
+                            {/* filledDates에 포함되면 변동액 숨김 */}
+                            {!filledDates.has(key) && hasChange && (
                                 <span className={`text-[9px] font-bold tabular-nums leading-none mb-0.5 ${text} opacity-90`}>
                                     {diffValue > 0 ? '+' : diffValue < 0 ? '-' : ''}{formatMoney(Math.abs(diffValue), false)}
                                 </span>
                             )}
-                            <span className="text-[9px] md:text-[10px] text-gray-500 font-semibold tracking-tight tabular-nums leading-none">
+                            <span className={`text-[9px] md:text-[10px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-500'}`}>
                                 {formatMoney(currentValue, false)}
                             </span>
                         </div>

@@ -93,6 +93,53 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         return showSymbol ? `${symbol}${formattedNum}` : formattedNum;
     };
 
+    const formatAbbreviatedMoney = (usdValue) => {
+        if (usdValue === undefined || usdValue === null) return '';
+
+        let val = usdValue;
+
+        if (currency === 'KRW') {
+            val = usdValue * EXCHANGE_RATE;
+            const absVal = Math.abs(val);
+            const sign = val < 0 ? '-' : '';
+
+            // 억 단위 (100,000,000)
+            if (absVal >= 100_000_000) {
+                let ok = Math.floor(absVal / 100_000_000);
+                let man = Math.round((absVal % 100_000_000) / 10_000);
+
+                if (man >= 10000) {
+                    ok += 1;
+                    man = 0;
+                }
+
+                return `${sign}${ok}억${man > 0 ? `${man}만` : ''}원`;
+            }
+            // 만 단위 (10,000)
+            if (absVal >= 10_000) {
+                const man = Math.round(absVal / 10_000);
+                return `${sign}${man}만원`;
+            }
+
+            return `${sign}${Math.round(absVal).toLocaleString()}원`;
+        } else {
+            // USD
+            const absVal = Math.abs(val);
+            const sign = val < 0 ? '-' : '';
+
+            if (absVal >= 1_000_000_000) {
+                return `${sign}$${(absVal / 1_000_000_000).toFixed(2)}B`;
+            }
+            if (absVal >= 1_000_000) {
+                return `${sign}$${(absVal / 1_000_000).toFixed(2)}M`;
+            }
+            if (absVal >= 1_000) {
+                return `${sign}$${(absVal / 1_000).toFixed(2)}K`;
+            }
+            return `${sign}$${absVal.toLocaleString()}`;
+        }
+    };
+
     // --- 날짜 도우미 함수 ---
     const formatDateKey = (date) => date.toISOString().split('T')[0];
     const getPreviousDateKey = (dateKey) => {
@@ -261,6 +308,9 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                             )}
                             <span className={`text-[8px] md:text-[9px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-400'}`}>
                                 {formatMoney(currentValue, true)}
+                            </span>
+                            <span className={`text-[7px] md:text-[8px] font-medium tracking-tighter leading-none mt-0.5 ${filledDates.has(key) ? 'text-gray-300/60' : 'text-gray-400/80'}`}>
+                                {formatAbbreviatedMoney(currentValue)}
                             </span>
                         </div>
                     )}

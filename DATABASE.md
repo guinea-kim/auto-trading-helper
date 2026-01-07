@@ -21,7 +21,7 @@
 | `hash_value` | VARCHAR(70) | 증권사에서 받은 암호화/해시된 계좌 값 |
 | `account_number` | VARCHAR(20) | 실제 계좌 번호 (마스킹/내부용) |
 | `cash_balance` | DECIMAL | 현재 주문 가능 현금 (예수금) |
-| `contribution` | DECIMAL | 총 투자 원금 |
+| `contribution` | DECIMAL | 총 투자 원금 (※ 현재 버전에서는 `contribution_history`의 합계로 동적 계산됨) |
 | `total_value` | DECIMAL | 총 계좌 가치 (현금 + 보유 주식) |
 
 #### 1.2. `trading_rules`
@@ -59,6 +59,18 @@
 | `account_id` | VARCHAR(20) | 계좌 ID |
 | `symbol` | VARCHAR | 종목 심볼 (또는 `total`, `cash`) |
 | `amount` | DECIMAL | 가치 금액 (평가금액) |
+
+#### 1.5. `contribution_history`
+계좌별 입출금 내역을 저장하여 정확한 원금 계산을 지원합니다.
+| Column | Type | Description |
+|--------|------|-------------|
+| `id` | INT (PK) | 자동 증가 ID |
+| `account_number` | VARCHAR | 계좌 번호 (FK) |
+| `activity_id` | BIGINT | 거래 고유 ID (중복 방지용) |
+| `transaction_date` | DATETIME | 거래 발생 일시 |
+| `type` | VARCHAR | 거래 유형 (e.g., JOURNAL, FUNDS) |
+| `amount` | DECIMAL | 거래 금액 (입금 +, 출금 -) |
+| `description` | TEXT | 거래 설명 |
 
 ### 국가별 차이점 (Regional Differences)
 | Feature | US DB (`helper_db`) | KR DB (`helper_kr_db`) |

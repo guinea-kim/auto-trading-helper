@@ -57,6 +57,21 @@ CREATE TABLE helper_db.daily_records (
     UNIQUE KEY (record_date, account_id, symbol)
 );
 
+CREATE TABLE contribution_history (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    account_number VARCHAR(20) NOT NULL,
+    activity_id BIGINT NOT NULL UNIQUE,
+    transaction_date DATETIME NOT NULL,
+    type VARCHAR(50) NOT NULL,
+    amount DECIMAL(15, 2) NOT NULL,
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_account_date (account_number, transaction_date),
+    FOREIGN KEY (account_number) REFERENCES accounts(account_number)
+);
+
+CREATE UNIQUE INDEX idx_account_number ON accounts(account_number);
+
 -------------kr
 CREATE DATABASE IF NOT EXISTS helper_kr_db;
 USE helper_kr_db;

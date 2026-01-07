@@ -202,6 +202,29 @@ def get_highest_price(symbol):
     return {'symbol': symbol, 'highest_price': highest_price}
 
 
+@app.route('/api/history/<account_number>', methods=['GET'])
+def get_contribution_history_api(account_number):
+    try:
+        # Determine market handler if needed, but history is likely same DB structure
+        # Assuming US DB handler is primary for now or based on current market context?
+        # The history table is in the main DB.
+        # Since 'contribution_history' is likely in the same DB as 'accounts', 
+        # and we saw both us_db_handler and kr_db_handler share the same DB connection logic (just different DB names).
+        # We should check both or rely on a query parameter?
+        # Actually, accounts table has 'market' implied? No, `add_account` uses us or kr db handler.
+        # Let's check which DB the account is in.
+        
+        # Simple approach: Check US first, if empty, check KR? 
+        # Or better: Pass 'market' query param.
+        market = request.args.get('market', 'us')
+        db_handler = us_db_handler if market == 'us' else kr_db_handler
+        
+        history = db_handler.get_contribution_history(account_number)
+        return {'account_number': account_number, 'history': history}
+    except Exception as e:
+        return {'error': str(e)}, 500
+
+
 @app.route('/api/daily-assets', methods=['GET'])
 def get_daily_assets():
     market = request.args.get('market', 'us')  # 기본값 'us', 한국은 'kr'

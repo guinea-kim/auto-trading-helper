@@ -71,13 +71,33 @@ class DatabaseHandler:
                 rows.append(row_dict)
             return rows
     
-    def get_accounts(self):
-        sql = """
-        SELECT * FROM accounts ORDER BY id
-        """
+    def get_accounts(self, use_dynamic_contribution=True):
+        if use_dynamic_contribution:
+            sql = """
+            SELECT 
+                a.*,
+                COALESCE(
+                    (SELECT SUM(amount) FROM contribution_history WHERE account_number = a.account_number),
+                    0
+                ) as dynamic_contribution
+            FROM accounts a 
+            ORDER BY a.id
+            """
+        else:
+            sql = """
+            SELECT a.* FROM accounts a ORDER BY a.id
+            """
+
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))
-            return [dict(row._mapping) for row in result]
+            accounts = []
+            for row in result:
+                d = dict(row._mapping)
+                # Override static contribution with dynamic calculation ONLY if enabled
+                if use_dynamic_contribution:
+                    d['contribution'] = d['dynamic_contribution']
+                accounts.append(d)
+            return accounts
     
     def get_users(self):
         sql = """
@@ -199,6 +219,20 @@ class DatabaseHandler:
             })
             conn.commit()
 
+    def update_account_type(self, account_id: str, account_type: str) -> None:
+        """계정의 타입 업데이트"""
+        sql = """
+            UPDATE accounts 
+            SET account_type = :account_type 
+            WHERE id = :account_id
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "account_type": account_type,
+                "account_id": account_id
+            })
+            conn.commit()
+
     def update_account_total_value(self, account_id: str, total_value: float) -> None:
         """계정의 계좌총액 업데이트"""
         sql = """
@@ -212,6 +246,28 @@ class DatabaseHandler:
                 "account_id": account_id
             })
             conn.commit()
+
+    def get_contribution_history(self, account_number: str) -> List[Dict]:
+        """특정 계좌의 기여금 이력 조회"""
+        sql = """
+            SELECT * FROM contribution_history 
+            WHERE account_number = :account_number 
+            ORDER BY transaction_date DESC
+        """
+        with self.engine.connect() as conn:
+            result = conn.execute(text(sql), {"account_number": account_number})
+            rows = []
+            for row in result:
+                d = dict(row._mapping)
+                # Convert datetime/decimal types if necessary
+                if 'amount' in d and isinstance(d['amount'], decimal.Decimal):
+                    d['amount'] = float(d['amount'])
+                if 'transaction_date' in d:
+                    d['transaction_date'] = str(d['transaction_date'])
+                if 'created_at' in d:
+                    d['created_at'] = str(d['created_at'])
+                rows.append(d)
+            return rows
     def update_rule_status(self, rule_id: int, status: str) -> None:
         """거래 규칙 상태 업데이트"""
         sql = """
@@ -504,3 +560,16 @@ class DatabaseHandler:
                 data.append(row_dict)
 
             return data
+
+    def execute_many(self, sql: str, args: list) -> None:
+        """Execute multiple SQL statements (bulk insert/update)"""
+        conn = self.engine.raw_connection()
+        try:
+            cursor = conn.cursor()
+            try:
+                cursor.executemany(sql, args)
+                conn.commit()
+            finally:
+                cursor.close()
+        finally:
+            conn.close()

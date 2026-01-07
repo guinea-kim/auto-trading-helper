@@ -115,3 +115,21 @@ Starting the Server and Running Puppeteer Automation
 ```
 0 0 * * 0 cd /path/to/your/project && /usr/local/bin/node /path/to/your/project/script.js
 ```
+
+## Transaction History Tracking
+Since Jan 2026, we track the detailed transaction history for accurate contribution calculation.
+
+1.  **Initialize DB**:
+    ```bash
+    python scripts/setup/init_contribution_history_db.py
+    ```
+
+2.  **Daily Update**:
+    The cron job runs `scripts/transactions/update_transactions.py` daily to fetch recent transactions from Schwab.
+
+3.  **Manual Entry**:
+    If you need to manually add a missing transaction (e.g., Roth conversion):
+    ```bash
+    # Open scripts/transactions/manual_insert.py, edit target_account/date/amount, then run:
+    python scripts/transactions/manual_insert.py
+    ```

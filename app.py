@@ -36,7 +36,8 @@ def index():
         current_db_handler = us_db_handler
 
     # 데이터 가져오기
-    accounts = current_db_handler.get_accounts()
+    use_dynamic = (market == 'us')
+    accounts = current_db_handler.get_accounts(use_dynamic_contribution=use_dynamic)
     trading_rules = current_db_handler.get_trading_rules()
 
     # 종목별 합산된 포트폴리오 배분 데이터 가져오기 (계좌 상관없이)
@@ -238,6 +239,9 @@ def get_contribution_history_api(account_number):
         # Simple approach: Check US first, if empty, check KR? 
         # Or better: Pass 'market' query param.
         market = request.args.get('market', 'us')
+        if market == 'kr':
+            return {'account_number': account_number, 'history': []}
+
         db_handler = us_db_handler if market == 'us' else kr_db_handler
         
         history = db_handler.get_contribution_history(account_number)

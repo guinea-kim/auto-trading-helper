@@ -12,8 +12,8 @@ class ContributionManager:
 
     def update_daily_contributions(self, user_id, exclude_accounts=None, days_back=7):
         """
-        Updates contribution history for a specific user ID (tucan or guinea).
-        Handles account deduplication (prefer Guinea).
+        Updates contribution history for a specific user ID.
+        Handles account deduplication based on DB ownership and account types.
         """
         if exclude_accounts is None:
             exclude_accounts = set()
@@ -29,44 +29,62 @@ class ContributionManager:
             print(f"[{user_id}] No accounts found.")
             return
 
-        # 2. Get Existing Accounts from DB to map IDs
-        # Assumes db_handler has a method to check existing accounts or we fetch all
-        # db_accounts = self.db.get_all_accounts_map() 
+        # 2. Get Existing Accounts from DB to map IDs & Types
+        try:
+            db_accounts_list = self.db.get_accounts()
+            # Map account_number -> account_info
+            db_accounts_map = {str(a['account_number']): a for a in db_accounts_list}
+        except Exception as e:
+            self.logger.error(f"[{user_id}] Failed to get DB accounts: {e}")
+            return
+
         today = datetime.datetime.now()
         start_date = today - datetime.timedelta(days=days_back)
 
-        
-        # Ensure start_date is timezone aware or compliant with library expectations if needed.
-        # Schwab client normally expects datetime objects.
-
         for acct_num, acct_hash in schwab_accounts.items():
-            # EXCLUSION LOGIC
-            if str(acct_num) == '37522548':
+            acct_str = str(acct_num)
+            
+            # 2.1 Check if account exists in DB
+            if acct_str not in db_accounts_map:
+                # If not in DB, we skip it (Implicit Exclusion or Unknown Account)
+                continue
+
+            acct_info = db_accounts_map[acct_str]
+            account_type = acct_info.get('account_type', 'NORMAL') # Default to NORMAL if None
+            owner_id = acct_info.get('user_id')
+
+            # 2.2 EXCLUSION LOGIC (DB Based)
+            if account_type == 'EXCLUDED':
                 print(f"[{user_id}] Skipping excluded account {acct_num}")
                 continue
             
-            if str(acct_num) in exclude_accounts:
-                print(f"[{user_id}] Skipping excluded (already processed) account {acct_num}")
+            # 2.3 Manual Exclusion Override
+            if acct_str in exclude_accounts:
+                print(f"[{user_id}] Skipping excluded (manually listed) account {acct_num}")
                 continue
 
-            # DEDUPLICATION LOGIC (Guinea Priority) is handled by caller passing exclude_accounts
+            # 2.4 DEDUPLICATION / OWNERSHIP LOGIC
+            # Only process if the current user_id matches the DB owner
+            if owner_id and owner_id != user_id:
+                # This account belongs to another user (e.g. Joint account handled by the other ID)
+                # print(f"[{user_id}] Skipping account {acct_num} owned by {owner_id}")
+                continue
             
-            print(f"[{user_id}] Processing Account: {acct_num}")
+            print(f"[{user_id}] Processing Account: {acct_num} ({account_type})")
             
             # 3. Determine Transaction Types & Fetch
-            types = self._get_types_for_account(acct_num)
+            types = self._get_types_for_account(account_type)
             
             try:
                 client = self.schwab.get_client()
                 
-                # Fetch in chunks of 360 days to avoid "difference between the dates must not be more than a year" error
+                # Fetch in chunks to avoid errors
                 chunk_size = 360
                 date_cursor = start_date
                 all_txs = []
                 
                 while date_cursor < today:
                     chunk_end = min(date_cursor + datetime.timedelta(days=chunk_size), today)
-                    # print(f"  Fetching from {date_cursor.date()} to {chunk_end.date()}")
                     
                     resp = client.get_transactions(
                         acct_hash,
@@ -81,20 +99,21 @@ class ContributionManager:
                         chunk_txs = resp.json()
                         all_txs.extend(chunk_txs)
                     
-                    # Move cursor forward
-                    date_cursor = chunk_end + datetime.timedelta(seconds=1) # start next chunk just after
+                    date_cursor = chunk_end + datetime.timedelta(seconds=1)
 
                 # 4. Filter & Insert
-                filtered_txs = self._filter_transactions(acct_num, all_txs)
+                filtered_txs = self._filter_transactions(account_type, all_txs)
                 self._save_transactions(acct_num, filtered_txs)
                 
             except Exception as e:
                 print(f"Error processing {acct_num}: {e}")
                 self.logger.error(f"Error processing {acct_num}: {e}")
 
-    def _get_types_for_account(self, acct_num):
-        # Special case for 96839515 
-        if str(acct_num) == '96839515':
+    def _get_types_for_account(self, account_type):
+        """
+        Returns transaction types based on account type.
+        """
+        if account_type == 'NORMAL':
             return [
                 self.TxType.CASH_RECEIPT,
                 self.TxType.JOURNAL,
@@ -103,7 +122,7 @@ class ContributionManager:
                 self.TxType.TRADE
             ]
         
-        # Default Types for other accounts
+        # 'RETIREMENT' and others
         return [
             self.TxType.ACH_RECEIPT,
             self.TxType.WIRE_IN,
@@ -133,10 +152,12 @@ class ContributionManager:
             pos_candidates = [] 
             neg_candidates = []
             
-            # Identify candidates
             for i, tx in enumerate(day_txs):
                 desc = tx.get('description', '')
-                amount = float(tx.get('netAmount', 0)) # Ensure float
+                try:
+                    amount = float(tx.get('netAmount', 0)) # Ensure float
+                except (ValueError, TypeError):
+                    amount = 0.0
                 
                 if amount > 0 and desc in ["BANK SWEEP FR BROKERAGE", "BROKERAGE SWEEP FR BANK"]:
                     pos_candidates.append(i)
@@ -145,7 +166,6 @@ class ContributionManager:
             
             matched_indices = set()
             
-            # Match pairs
             for p_idx in pos_candidates:
                 p_val = float(day_txs[p_idx].get('netAmount', 0))
                 for n_idx in neg_candidates:
@@ -164,14 +184,14 @@ class ContributionManager:
                     
         return final_list
 
-    def _filter_transactions(self, acct_num, txs):
+    def _filter_transactions(self, account_type, txs):
         # 1. First, remove sweep pairs for ALL accounts
         filtered_txs = self._filter_sweep_pairs(txs)
         
         # 2. Apply Account Specific Logic
         final_txs = []
         
-        if str(acct_num) == '96839515':
+        if account_type == 'NORMAL':
             for tx in filtered_txs:
                 ttype = tx.get('type')
                 desc = tx.get('description', '')
@@ -194,7 +214,7 @@ class ContributionManager:
                     if is_goog:
                         final_txs.append(tx)
         else:
-            # For other accounts, keep everything that passed the sweep filter
+            # For RETIREMENT and others, keep everything that passed the sweep filter
             final_txs = filtered_txs
         return final_txs
 

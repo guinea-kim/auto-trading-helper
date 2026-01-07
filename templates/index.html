@@ -281,6 +281,7 @@
                         <th>사용자 ID</th>
                         <th>계좌번호</th>
                         <th>설명</th>
+                        <th>타입</th>
                         <th>예수금</th>
                         <th>계좌총액</th>
                         <th>기여금</th>
@@ -295,6 +296,21 @@
                         <td>{{ account.user_id }}</td>
                         <td>{{ account.account_number }}</td>
                         <td>{{ account.description }}</td>
+                        <td>
+                            <form action="{{ url_for('update_account_type') }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
+                                <input type="hidden" name="account_id" value="{{ account.id }}">
+                                <select name="account_type" class="form-select form-select-sm" style="width: 110px;"
+                                    onchange="this.form.submit()">
+                                    <option value="NORMAL" {% if account.account_type=='NORMAL' %}selected{% endif %}>일반
+                                    </option>
+                                    <option value="RETIREMENT" {% if account.account_type=='RETIREMENT' %}selected{%
+                                        endif %}>은퇴</option>
+                                    <option value="EXCLUDED" {% if account.account_type=='EXCLUDED' %}selected{% endif
+                                        %}>제외</option>
+                                </select>
+                            </form>
+                        </td>
                         <td>{{ "${:,.2f}".format(account.cash_balance|float) if account.cash_balance else "$0" }}</td>
                         <td>{{ "${:,.2f}".format(account.total_value|float) if account.total_value else "$0.00" }}</td>
                         <td>
@@ -685,7 +701,7 @@
             }
 
             // 모든 업데이트 폼에 대해 AJAX 처리 적용
-            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"]');
+            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"], form[action*="update_account_type"]');
 
             updateForms.forEach(form => {
                 // 폼 제출 이벤트 리스너 추가

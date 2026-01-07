@@ -104,56 +104,14 @@ print(json.dumps({
   }
 }
 
-// Start the HTTPS server
-function startServer(userId, redirectUri) {
-  logger.info(`start server for USER: ${userId}`);
-  return new Promise((resolve, reject) => {
-    const httpsOptions = {
-      key: fs.readFileSync("server-key.pem"),
-      cert: fs.readFileSync("server-cert.pem"),
-    };
+// -----------------------------------------------------------------------------
+// Core Authentication Logic
+// -----------------------------------------------------------------------------
 
-    server = https.createServer(httpsOptions, app);
+async function getAuthToken(userId, code, redirectUri) {
+  logger.info(`*** EXCHANGING AUTH CODE FOR TOKEN for ${userId} ***`);
 
-    // Listen for GET requests on /
-    app.get("/", (req, res) => {
-      // Extract URL parameters
-      authorizationCode = req.query.code;
-
-      if (!authorizationCode) {
-        return res.status(400).send("Missing authorization code");
-      }
-
-      // Call the getAuthToken function
-      getAuthToken(userId, redirectUri)
-        .then((tokens) => {
-          // Send response to client
-          res.send("Authorization process completed. Check the logs for details.");
-          resolve(tokens); // Resolve with the tokens once received
-        })
-        .catch(reject);
-    });
-
-    // Start the server
-    server.listen(8182, () => {
-      logger.info(`Express server is listening on port 8182 for ${userId}`);
-    });
-
-    // Set a timeout to close the server after 60 seconds if no authorization code is received
-    setTimeout(() => {
-      if (!authorizationCode) {
-        logger.warn("Timeout: No authorization code received. Shutting down the server.");
-        server.close(() => resolve(null));
-      }
-    }, 300000);
-  });
-}
-
-// Function to fetch the auth token
-async function getAuthToken(userId, redirectUri) {
   const { clientId, clientSecret } = await getUserAuthConfig(userId);
-
-  // Base64 encode the client_id:client_secret
   const base64Credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   try {
@@ -164,39 +122,32 @@ async function getAuthToken(userId, redirectUri) {
         "Content-Type": "application/x-www-form-urlencoded",
         Authorization: `Basic ${base64Credentials}`,
       },
-      data: `grant_type=authorization_code&code=${authorizationCode}&redirect_uri=${redirectUri}`,
+      data: `grant_type=authorization_code&code=${code}&redirect_uri=${redirectUri}`,
     });
 
     logger.info("*** GOT NEW AUTH TOKEN ***");
+    const accessToken = response.data.access_token;
+    const refreshToken = response.data.refresh_token;
 
-    // Log the refresh_token and access_token before exiting
-    accessToken = response.data.access_token;
-    refreshToken = response.data.refresh_token;
-    logger.info(`Access Token: ${accessToken}`);
-    logger.info(`Refresh Token: ${refreshToken}`);
-
-    // Save tokens to the specified path
+    // Save tokens to file
     saveTokensToFile(userId, response.data);
 
     return response.data;
   } catch (error) {
-    logger.error(`Error fetching auth token: ${error}`);
+    logger.error(`Error fetching auth token: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
     throw error;
   }
 }
 
-// Function to save tokens to file
 function saveTokensToFile(userId, tokenData) {
-  // Create tokens directory if it doesn't exist
   const tokensDir = path.join(__dirname, 'library', 'tokens');
   if (!fs.existsSync(tokensDir)) {
     fs.mkdirSync(tokensDir, { recursive: true });
   }
 
-  // Save tokens to file
   const tokenFilePath = path.join(tokensDir, `schwab_token_${userId}.json`);
   const tokenContent = JSON.stringify({
-    "creation_timestamp": Math.floor(Date.now() / 1000), // 현재 시간을 Unix 타임스탬프로
+    "creation_timestamp": Math.floor(Date.now() / 1000),
     "token": {
       "expires_in": tokenData.expires_in,
       "token_type": tokenData.token_type,
@@ -204,7 +155,7 @@ function saveTokensToFile(userId, tokenData) {
       "refresh_token": tokenData.refresh_token,
       "access_token": tokenData.access_token,
       "id_token": tokenData.id_token || "",
-      "expires_at": Math.floor(Date.now() / 1000) + tokenData.expires_in // 만료 시간 계산
+      "expires_at": Math.floor(Date.now() / 1000) + tokenData.expires_in
     }
   }, null, 2);
 
@@ -212,142 +163,27 @@ function saveTokensToFile(userId, tokenData) {
   logger.info(`Tokens saved to ${tokenFilePath}`);
 }
 
-// Function to automate the login process using Puppeteer
-async function automateLogin(config) {
-  const browser = await puppeteer.launch({
-    headless: false, // May need to set to false in the future to avoid automation detection
-    ignoreHTTPSErrors: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-blink-features=AutomationControlled", // To make automation less detectable
-      "--ignore-certificate-errors", // Ignore all certificate errors
-      "--disable-web-security", // Optionally disable web security
-      "--disable-features=SecureDNS,EnableDNSOverHTTPS", // Disable Secure DNS and DNS-over-HTTPS
-    ],
-  });
-
-  const page = await browser.newPage();
-
-  if (process.platform === 'darwin'){
-    await page.setUserAgent(
-      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/100.0.4896.127 Safari/537.36"
-    );
-  }
-  else {
-    await page.setUserAgent(
-      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-    );
-  }
-
-  try {
-    // Go to the OAuth authorization URL
-    await page.goto(
-      `https://api.schwabapi.com/v1/oauth/authorize?response_type=code&client_id=${config.clientId}&scope=readonly&redirect_uri=https://127.0.0.1:8182`,
-      { waitUntil: "load" }
-    );
-
-    logger.info("Navigation to login page successful.");
-
-    // Wait for the login ID input field to be visible
-    await page.waitForSelector("#loginIdInput", { visible: true });
-    logger.info("Login ID input is visible.");
-
-    // Wait for the password input field to be visible
-    await page.waitForSelector("#passwordInput", { visible: true });
-    logger.info("Password input is visible.");
-
-    // Fill in the login ID with a slower typing speed
-    await page.type("#loginIdInput", config.username, { delay: 100 });
-    logger.info("Login ID entered.");
-
-    // Fill in the password with a slower typing speed
-    await page.type("#passwordInput", config.password, { delay: 100 });
-    logger.info("Password entered.");
-
-    // Click the login button
-    await page.click("#btnLogin");
-    logger.info("Login button clicked.");
-
-    // Wait for navigation to the terms acceptance page
-    await page.waitForNavigation({ waitUntil: "load" });
-    logger.info("Navigation to terms page successful.");
-
-    // Wait for the terms checkbox to be visible
-    await page.waitForSelector("#acceptTerms", { visible: true });
-    logger.info("Terms checkbox is visible.");
-
-    // Check the terms checkbox
-    await page.click("#acceptTerms");
-    logger.info("Terms checkbox clicked.");
-
-    await page.waitForSelector("#submit-btn", { visible: true });
-    // Click the "Continue" button
-    await page.click("#submit-btn");
-    logger.info("Continue button clicked.");
-
-    // Wait for the modal dialog to appear
-    await page.waitForSelector("#agree-modal-btn-", { visible: true });
-    logger.info("Modal dialog is visible.");
-
-    // Click the "Accept" button in the modal
-    await page.click("#agree-modal-btn-");
-    logger.info("Modal 'Accept' button clicked.");
-
-    // Wait for navigation to the accounts page
-    await page.waitForNavigation({ waitUntil: "load" });
-    logger.info("Navigation to accounts page successful.");
-
-    // Wait for checkbox's to appear
-    await page.waitForSelector("input[type='checkbox']", { visible: true });
-
-    // Make sure all accounts are checked (if they aren't by default)
-    const checkboxes = await page.$$("input[type='checkbox']");
-    logger.info(`Found ${checkboxes.length} account checkboxes`);
-
-    for (let i = 0; i < checkboxes.length; i++) {
-      const isChecked = await checkboxes[i].evaluate(checkbox => checkbox.checked);
-      if (!isChecked) {
-        await checkboxes[i].click();
-        logger.info(`Clicked checkbox #${i+1} that was not checked`);
-      } else {
-        logger.info(`Checkbox #${i+1} was already checked`);
-      }
-    }
-
-    // Click the "Continue" button on the accounts page
-    await page.waitForSelector("#submit-btn", { visible: true });
-    await page.click("#submit-btn");
-    logger.info("Continue button clicked on accounts page.");
-
-    // Wait for navigation to the confirmation page
-    await page.waitForNavigation({ waitUntil: "load" });
-    logger.info("Navigation to confirmation page successful.");
-
-    // Click the "Done" button on the confirmation page
-    await page.waitForSelector("#cancel-btn", { visible: true });
-    await page.click("#cancel-btn");
-    logger.info("Done button clicked.");
-
-    // Wait for the final redirect to your HTTPS server
-    await page.waitForNavigation({ waitUntil: "load" });
-    logger.info("Redirect to HTTPS server successful.");
-
-    logger.info("Puppeteer automation completed.");
-  } catch (error) {
-    logger.error(`Error during automation: ${error}`);
-    throw error
-  } finally {
-    await browser.close();
-  }
-}
-
 async function refreshAuthToken(userId) {
   logger.info("*** REFRESHING ACCESS TOKEN ***");
 
-  const { clientId, clientSecret } = await getUserAuthConfig(userId);
+  // Read existing token to get refresh_token
+  let refreshToken;
+  try {
+    const tokenFilePath = path.join(__dirname, 'library', 'tokens', `schwab_token_${userId}.json`);
+    if (fs.existsSync(tokenFilePath)) {
+      const tokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf-8'));
+      refreshToken = tokenData.token.refresh_token;
+    }
+  } catch (e) {
+    logger.warn(`Could not read existing token for ${userId}: ${e.message}`);
+  }
 
-  // Base64 encode the client_id:client_secret
+  if (!refreshToken) {
+    logger.error(`No refresh token found for ${userId}. manual login required.`);
+    return null;
+  }
+
+  const { clientId, clientSecret } = await getUserAuthConfig(userId);
   const base64Credentials = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
 
   try {
@@ -361,100 +197,236 @@ async function refreshAuthToken(userId) {
       data: `grant_type=refresh_token&refresh_token=${refreshToken}`,
     });
 
-    // Log the new refresh_token and access_token
-    accessToken = response.data.access_token;
-    refreshToken = response.data.refresh_token;
-    logger.info(`New Refresh Token: ${response.data.refresh_token}`);
-    logger.info(`New Access Token: ${response.data.access_token}`);
-
-    // Save updated tokens to file
     saveTokensToFile(userId, response.data);
-
     return response.data;
   } catch (error) {
-    logger.error(`Error refreshing auth token: ${error.response ? error.response.data : error.message}`);
+    logger.error(`Error refreshing auth token: ${error.response ? JSON.stringify(error.response.data) : error.message}`);
     throw error;
   }
 }
 
-async function getAccounts() {
-  logger.info("*** API TEST CALL: ACCOUNTS ***");
+async function getAccounts(userId) {
+  logger.info(`*** API TEST CALL: ACCOUNTS for ${userId} ***`);
+
+  let accessToken;
+  try {
+    const tokenFilePath = path.join(__dirname, 'library', 'tokens', `schwab_token_${userId}.json`);
+    const tokenData = JSON.parse(fs.readFileSync(tokenFilePath, 'utf-8'));
+    accessToken = tokenData.token.access_token;
+  } catch (e) {
+    logger.error("Failed to read access token for account call");
+    return;
+  }
 
   const res = await axios({
     method: "GET",
     url: "https://api.schwabapi.com/trader/v1/accounts?fields=positions",
-    contentType: "application/json",
     headers: {
       "Accept-Encoding": "application/json",
-      Authorization: "Bearer " + accessToken,
+      "Authorization": "Bearer " + accessToken,
     },
   });
 
-  logger.info(JSON.stringify(res.data, null, 2));
+  logger.info(`Successfully fetched ${res.data.length} accounts.`);
 }
 
-// 서버 종료 함수 추가
-function closeServer() {
-  return new Promise((resolve) => {
-    if (server && server.listening) {
-      logger.info("Closing the server...");
-      server.close(() => {
-        logger.info("Server closed successfully");
-        app = express(); // 새로운 Express 앱 인스턴스 생성
-        resolve();
-      });
-    } else {
-      logger.info("Server was not running");
-      app = express();
-      resolve();
-    }
+// -----------------------------------------------------------------------------
+// Robust Puppeteer Automation (System Chrome + Interception)
+// -----------------------------------------------------------------------------
+
+async function randomDelay(min, max) {
+  return new Promise(r => setTimeout(r, min + Math.random() * (max - min)));
+}
+
+async function automateLogin(config) {
+  const EXECUTABLE_PATH = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+  const OAUTH_URL = `https://api.schwabapi.com/v1/oauth/authorize?response_type=code&client_id=${config.clientId}&scope=readonly&redirect_uri=${config.redirectUri}`;
+
+  logger.info('[REAL-AUTO] Launching System Chrome with Interception...');
+
+  const browser = await puppeteer.launch({
+    headless: false,
+    executablePath: EXECUTABLE_PATH,
+    userDataDir: './chrome_profile_real', // Keeps session alive
+    args: ['--no-sandbox', '--disable-blink-features=AutomationControlled', '--window-position=0,0'],
+    ignoreDefaultArgs: ['--enable-automation'],
+    defaultViewport: null
   });
+
+  try {
+    const pages = await browser.pages();
+    const page = pages.length > 0 ? pages[0] : await browser.newPage();
+
+    // *** INTERCEPTION LOGIC ***
+    await page.setRequestInterception(true);
+    let capturedCode = null;
+
+    page.on('request', request => {
+      const url = request.url();
+      if (url.startsWith('https://127.0.0.1') || url.startsWith('http://127.0.0.1')) {
+        // logger.info('Intercepted Redirect URL:', url);
+        try {
+          const urlObj = new URL(url);
+          const code = urlObj.searchParams.get('code');
+          if (code) {
+            logger.info('SUCCESS! OAuth Code found via Network Interception.');
+            capturedCode = code;
+          }
+        } catch (e) { }
+        request.abort();
+      } else {
+        request.continue();
+      }
+    });
+
+    logger.info('Navigating to OAuth URL...');
+    await page.goto(OAUTH_URL, { waitUntil: 'networkidle2' });
+
+    // --- LOGIN ---
+    logger.info('Checking Login Page...');
+    try {
+      const loginSel = '#loginIdInput';
+      if (await page.$(loginSel) !== null) {
+        logger.info('Login form found. Typing credentials...');
+        await page.type(loginSel, config.username, { delay: 50 });
+        await page.type('#passwordInput', config.password, { delay: 50 });
+        await page.click('#btnLogin');
+      } else {
+        logger.info('Login form not detected (Likely already logged in).');
+      }
+    } catch (e) { }
+
+    logger.info('Entering URL monitoring loop...');
+    const startTime = Date.now();
+    const timeout = 60000; // 60 seconds timeout
+
+    while (Date.now() - startTime < timeout) {
+      if (capturedCode) {
+        await browser.close();
+        return capturedCode;
+      }
+
+      const currentUrl = page.url();
+      let bodyText = '';
+      try { bodyText = await page.evaluate(() => document.body.innerText.toLowerCase()); } catch (e) { }
+
+      // --- TERMS & POPUP ---
+      if (currentUrl.includes('cag') || (bodyText.includes('terms') && bodyText.includes('agree'))) {
+        try {
+          // Click Accept button in modal if exists
+          const modalClicked = await page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll('button, a, div[role="button"]'));
+            const target = buttons.find(b => {
+              const t = b.innerText.trim().toLowerCase();
+              const rect = b.getBoundingClientRect();
+              const visible = rect.width > 0 && rect.height > 0;
+              return t === 'accept' && visible;
+            });
+            if (target) { target.click(); return true; }
+            return false;
+          });
+          if (modalClicked) {
+            logger.info('Clicked Accept in modal');
+            await randomDelay(1000, 2000);
+            continue;
+          }
+
+          // Checkboxes
+          await page.evaluate(() => {
+            document.querySelectorAll('input[type="checkbox"]').forEach(b => { if (!b.checked) b.click(); });
+          });
+
+          // Continue button
+          const continueClicked = await page.evaluate(() => {
+            const buttons = Array.from(document.querySelectorAll('button, a, input[type="submit"]'));
+            const target = buttons.find(b => {
+              const txt = b.innerText.toLowerCase();
+              return (txt.includes('continue') || txt.includes('agree')) && !b.disabled;
+            });
+            if (target) { target.click(); return true; }
+            return false;
+          });
+          if (continueClicked) logger.info('Clicked Continue on Terms');
+        } catch (e) { }
+        await randomDelay(2000, 3000);
+      }
+
+      // --- ACCOUNT SELECTION ---
+      else if (currentUrl.includes('account') || bodyText.includes('select the accounts')) {
+        await page.evaluate(() => {
+          document.querySelectorAll('input[type="checkbox"]').forEach(b => { if (!b.checked) b.click(); });
+        });
+        await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll('button'));
+          const target = buttons.find(b => {
+            const t = b.innerText.toLowerCase();
+            return (t.includes('authorize') || t.includes('continue') || t.includes('allow')) && !b.disabled;
+          });
+          if (target) { target.click(); }
+        });
+        logger.info('Handled Account Selection');
+        await randomDelay(2000, 4000);
+      }
+
+      // --- CONFIRMATION / DONE ---
+      else if (currentUrl.includes('confirmation') || bodyText.includes('done') || bodyText.includes('success')) {
+        await page.evaluate(() => {
+          const buttons = Array.from(document.querySelectorAll('button, a'));
+          const target = buttons.find(b => {
+            const t = b.innerText.toLowerCase();
+            return (t.includes('done') || t.includes('close') || t.includes('finish') || t.includes('continue')) && !b.disabled;
+          });
+          if (target) { target.click(); }
+        });
+        logger.info('Handled Confirmation');
+        await randomDelay(2000, 4000);
+      }
+
+      await new Promise(r => setTimeout(r, 1000));
+    }
+
+    await browser.close();
+    if (capturedCode) return capturedCode;
+    throw new Error("Timeout waiting for OAuth code");
+
+  } catch (error) {
+    logger.error(`Error during automation: ${error}`);
+    await browser.close();
+    throw error;
+  }
 }
 
-// Function to process a single user
 async function processUser(userId) {
   logger.info(`\n=========================================`);
   logger.info(`PROCESSING USER: ${userId}`);
   logger.info(`=========================================\n`);
 
   try {
-    // Get auth configuration for the specified userId
     const config = await getUserAuthConfig(userId);
 
-    // Start the HTTPS server
-    const serverPromise = startServer(userId, 'https://127.0.0.1:8182');
+    // 1. Get Code via Puppeteer
+    const code = await automateLogin(config);
 
-    // Run Puppeteer automation
-    await automateLogin(config);
-
-    // Wait for the server to finish (either timeout or successful authorization)
-    const tokens = await serverPromise;
-
-    if (tokens) {
+    // 2. Exchange Code for Tokens
+    if (code) {
+      await getAuthToken(userId, code, config.redirectUri);
       logger.info(`Authorization process completed successfully for ${userId}.`);
 
-      // Test api with new accessToken
-      await getAccounts();
-
-      // Test refreshToken
-      await refreshAuthToken(userId);
-
-      // Test api with refreshed accessToken
-      await getAccounts();
-      await closeServer();
+      // 3. Verify
+      await getAccounts(userId);
       return true;
     } else {
-      logger.warn(`No tokens received within the timeout period for ${userId}.`);
-      await closeServer();
+      logger.error('Failed to obtain auth code.');
       return false;
     }
+
   } catch (error) {
-    logger.error(`Error processing user ${userId}: ${error}`);
-    await sendErrorToEmail(error);
-    await closeServer();
+    logger.error(`Error processing user ${userId}: ${error.message}`);
+    await sendErrorToEmail(error.message);
     return false;
   }
 }
+
 
 // Main function to coordinate the server and Puppeteer for all users
 async function main() {
@@ -561,8 +533,8 @@ async function sendEmailNotification(successCount, totalUsers) {
     to: emailSecrets.alerted_email,
     subject: '작업 완료 알림: 사용자 처리 불일치',
     text: `성공적으로 처리된 사용자 수에 불일치가 있습니다.\n\n` +
-          `총 사용자 수: ${totalUsers}\n` +
-          `성공적으로 처리된 사용자 수: ${successCount}\n\n`
+      `총 사용자 수: ${totalUsers}\n` +
+      `성공적으로 처리된 사용자 수: ${successCount}\n\n`
   };
 
   try {

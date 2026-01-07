@@ -2,15 +2,17 @@
 
 ## set up vitual env
 ```
-conda create -n auto-trading-helper python=3.10
-conda activate auto-trading-helper
+python -m venv .venv
+source .venv/bin/activate
 ```
 
-if you have trouble, remove env with below and recreate
+If you have trouble, remove env with below and recreate
 
 ```
-conda deactivate
-conda env remove --name auto-trading-helper 
+deactivate
+rm -rf .venv
+python -m venv .venv
+source .venv/bin/activate
 ```
 
 ## install prerequiste
@@ -95,7 +97,7 @@ These certificates will allow your local HTTPS server to run securely. Note that
 Starting the Server and Running Puppeteer Automation
 1. install node.js
 
-```conda install -c conda-forge nodejs=22.13.0```
+```brew install node```
 * for mac m1,m2 install .pkg of arm64 nodejs 
 2. Install Dependencies: Run the following command to install all required dependencies:
 

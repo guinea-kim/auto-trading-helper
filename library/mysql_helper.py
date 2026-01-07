@@ -71,31 +71,24 @@ class DatabaseHandler:
                 rows.append(row_dict)
             return rows
     
-    def get_accounts(self, use_dynamic_contribution=True):
-        if use_dynamic_contribution:
-            sql = """
-            SELECT 
-                a.*,
-                COALESCE(
-                    (SELECT SUM(amount) FROM contribution_history WHERE account_number = a.account_number),
-                    0
-                ) as dynamic_contribution
-            FROM accounts a 
-            ORDER BY a.id
-            """
-        else:
-            sql = """
-            SELECT a.* FROM accounts a ORDER BY a.id
-            """
-            
+    def get_accounts(self):
+        sql = """
+        SELECT 
+            a.*,
+            COALESCE(
+                (SELECT SUM(amount) FROM contribution_history WHERE account_number = a.account_number),
+                0
+            ) as dynamic_contribution
+        FROM accounts a 
+        ORDER BY a.id
+        """
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))
             accounts = []
             for row in result:
                 d = dict(row._mapping)
-                # Override static contribution with dynamic calculation ONLY if enabled
-                if use_dynamic_contribution:
-                    d['contribution'] = d['dynamic_contribution']
+                # Override static contribution with dynamic calculation
+                d['contribution'] = d['dynamic_contribution']
                 accounts.append(d)
             return accounts
     
@@ -215,6 +208,20 @@ class DatabaseHandler:
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "contribution": contribution,
+                "account_id": account_id
+            })
+            conn.commit()
+
+    def update_account_type(self, account_id: str, account_type: str) -> None:
+        """계정의 타입 업데이트"""
+        sql = """
+            UPDATE accounts 
+            SET account_type = :account_type 
+            WHERE id = :account_id
+        """
+        with self.engine.connect() as conn:
+            conn.execute(text(sql), {
+                "account_type": account_type,
                 "account_id": account_id
             })
             conn.commit()

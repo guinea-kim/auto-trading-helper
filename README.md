@@ -113,7 +113,7 @@ Starting the Server and Running Puppeteer Automation
 4. Cron excution every Sunday
 
 ```
-0 13 * * * cd /Users/tucan9389/projects/auto-trading-helper && /Users/tucan9389/miniforge3/envs/auto-trading-helper/bin/python /Users/tucan9389/projects/auto-trading-helper/scripts/transactions/update_transactions.py >> /Users/tucan9389/projects/auto-trading-helper/library/log/transaction_update_`date +\%Y\%m\%d`.log 2>&1
+0 0 * * 0 cd /path/to/your/project && /usr/local/bin/node /path/to/your/project/script.js
 ```
 
 ## Transaction History Tracking

@@ -103,24 +103,25 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
             const absVal = Math.abs(val);
             const sign = val < 0 ? '-' : '';
 
-            // 억 단위 (100,000,000)
-            if (absVal >= 100_000_000) {
-                let ok = Math.floor(absVal / 100_000_000);
-                let man = Math.round((absVal % 100_000_000) / 10_000);
+            // 1. Calculate Total 'Man' (10,000) units, rounded to nearest Man
+            // This prevents 9999.9... -> 10000 rollover issues
+            const totalMan = Math.round(absVal / 10000);
 
-                if (man >= 10000) {
-                    ok += 1;
-                    man = 0;
-                }
+            // Case A: >= 1 Eok (10,000 Man)
+            if (totalMan >= 10000) {
+                const ok = Math.floor(totalMan / 10000);
+                const remainMan = totalMan % 10000;
 
-                return `${sign}${ok}억${man > 0 ? `${man}만` : ''}원`;
-            }
-            // 만 단위 (10,000)
-            if (absVal >= 10_000) {
-                const man = Math.round(absVal / 10_000);
-                return `${sign}${man}만원`;
+                return `${sign}${ok}억${remainMan > 0 ? ` ${remainMan.toLocaleString()}만` : ''}원`;
             }
 
+            // Case B: >= 1 Man (10,000 Won)
+            // Show "XX만원" or "X,XXX만원"
+            if (totalMan >= 1) {
+                return `${sign}${totalMan.toLocaleString()}만원`;
+            }
+
+            // Case C: < 0.5 Man (rounds to 0 Man) -> Show raw Won with commas
             return `${sign}${Math.round(absVal).toLocaleString()}원`;
         } else {
             // USD
@@ -141,9 +142,21 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     };
 
     // --- 날짜 도우미 함수 ---
-    const formatDateKey = (date) => date.toISOString().split('T')[0];
+    // --- 날짜 도우미 함수 ---
+    // --- 날짜 도우미 함수 ---
+    // Use Local Time for "YYYY-MM-DD" to prevent timezone shifts
+    const formatDateKey = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
+
     const getPreviousDateKey = (dateKey) => {
         const date = new Date(dateKey);
+        // Note: new Date("YYYY-MM-DD") is UTC.
+        // But since we want to subtract 1 day, dealing with it in standard Date object works fine
+        // as long as we output using the same formatter.
         date.setDate(date.getDate() - 1);
         return formatDateKey(date);
     };
@@ -309,9 +322,6 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                             <span className={`text-[8px] md:text-[9px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-400'}`}>
                                 {formatMoney(currentValue, true)}
                             </span>
-                            <span className={`text-[7px] md:text-[8px] font-medium tracking-tighter leading-none mt-0.5 ${filledDates.has(key) ? 'text-gray-300/60' : 'text-gray-400/80'}`}>
-                                {formatAbbreviatedMoney(currentValue)}
-                            </span>
                         </div>
                     )}
                 </div>
@@ -454,13 +464,13 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-gray-400 font-medium mb-0.5 tracking-wide uppercase">Start</span>
                                 <span className="text-xs font-semibold text-gray-500 mb-px">{rangeStats.firstDate.replace(/-/g, '.')}</span>
-                                <span className="text-base font-bold text-gray-700 leading-none">{formatMoney(rangeStats.startVal)}</span>
+                                <span className="text-xl font-bold text-gray-700 leading-none">{formatAbbreviatedMoney(rangeStats.startVal)}</span>
                             </div>
                             <div className="w-px bg-gray-100 h-auto self-stretch"></div>
                             <div className="flex flex-col">
                                 <span className="text-[10px] text-gray-400 font-medium mb-0.5 tracking-wide uppercase">End</span>
                                 <span className="text-xs font-semibold text-gray-500 mb-px">{rangeStats.lastDate.replace(/-/g, '.')}</span>
-                                <span className="text-base font-bold text-gray-800 leading-none">{formatMoney(rangeStats.endVal)}</span>
+                                <span className="text-xl font-bold text-gray-800 leading-none">{formatAbbreviatedMoney(rangeStats.endVal)}</span>
                             </div>
                         </div>
 

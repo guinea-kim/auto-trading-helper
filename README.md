@@ -133,3 +133,12 @@ Since Jan 2026, we track the detailed transaction history for accurate contribut
     # Open scripts/transactions/manual_insert.py, edit target_account/date/amount, then run:
     python scripts/transactions/manual_insert.py
     ```
+
+## Contribution Management
+
+-   **US Market**: Contribution is calculated dynamically based on transaction history tracked in the database.
+    -   View history by clicking the "List" icon in the contribution column.
+    -   Manual updates are disabled in favor of automated tracking.
+-   **KR Market**: Contribution is managed manually.
+    -   You can directly edit the contribution amount in the "Contribution" column.
+    -   Changes are saved immediately upon submission.

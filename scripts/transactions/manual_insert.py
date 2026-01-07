@@ -14,7 +14,7 @@ def insert_manual_transaction():
     db = DatabaseHandler(secret.db_name)
     
     # Target Data
-    target_account = '64658554'
+    target_account = 'YOUR_ACCOUNT_NUMBER'
     target_date = '2025-01-14'
     target_amount = 7000.00
     target_description = 'IRA ROTH CONV'

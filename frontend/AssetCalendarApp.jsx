@@ -273,43 +273,40 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 <div
                     key={key}
                     onClick={() => handleDateClick(key)}
-                    className={`h-16 md:h-20 relative cursor-pointer transition-all hover:bg-opacity-90 ${cellBgClass} group ${isToday ? 'ring-2 ring-inset ring-amber-400 z-10' : ''}`}
+                    className={`h-14 md:h-20 relative cursor-pointer transition-all hover:bg-opacity-90 ${cellBgClass} group ${isToday ? 'ring-2 ring-inset ring-amber-400 z-10' : ''}`}
                 >
-                    <div className="absolute top-1 left-2 flex items-baseline gap-1 z-10">
-                        <span className={`text-[10px] font-medium ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
+                    <div className="absolute top-0.5 left-1 md:top-1 md:left-2 flex items-baseline gap-1 z-10">
+                        <span className={`text-[9px] md:text-[10px] font-medium ${isToday ? 'text-amber-600 font-bold' : 'text-gray-500'}`}>
                             {date.getMonth() + 1}/{date.getDate()}
                         </span>
-                        {/* 휴일/Filled 표시 (옵션) - 지금은 숨김 */}
                     </div>
 
                     {/* Center: Percent Change Only (High Contrast, Large Text) */}
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-1">
-                        {/* filledDates에 포함되면 변동률 숨김 */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-0.5 md:p-1">
                         {!filledDates.has(key) && hasChange ? (
-                            <span className={`text-2xl md:text-3xl font-black tracking-tighter leading-none ${text} drop-shadow-sm scale-110`}>
+                            // Mobile: text-[3.2vw] prevents overflow on 375px screens (approx 12px)
+                            <span className={`text-[3.2vw] md:text-3xl font-black tracking-tighter leading-none ${text} drop-shadow-sm scale-110`}>
                                 {percentChange > 0 ? '+' : ''}{percentChange.toFixed(2)}%
                             </span>
                         ) : currentValue !== undefined && !filledDates.has(key) ? (
                             <span className="text-gray-300 text-sm font-bold">-</span>
                         ) : (
-                            // Filled date or no value
                             <span className="opacity-0 group-hover:opacity-100 text-gray-300 text-base font-light transition-opacity">+</span>
                         )}
                     </div>
 
                     {/* Bottom Right: Change Amount & Total Value */}
                     {currentValue !== undefined && (
-                        <div className="absolute bottom-1 right-2 text-right flex flex-col items-end justify-end pointer-events-none gap-px">
-                            {/* filledDates에 포함되면 변동액 숨김 */}
+                        <div className="absolute bottom-0.5 right-1 md:bottom-1 md:right-2 text-right flex flex-col items-end justify-end pointer-events-none gap-px">
                             {!filledDates.has(key) && hasChange && (
-                                <span className={`text-[8px] md:text-[9px] font-bold tabular-nums leading-none ${text} opacity-90`}>
+                                <span className={`text-[8px] md:text-[9px] font-bold tabular-nums leading-none ${text} opacity-90 hidden sm:block`}>
                                     {diffValue > 0 ? '+' : diffValue < 0 ? '-' : ''}{formatMoney(Math.abs(diffValue), true)}
                                 </span>
                             )}
                             <span className={`text-[8px] md:text-[9px] font-semibold tracking-tight tabular-nums leading-none ${filledDates.has(key) ? 'text-gray-300' : 'text-gray-400'}`}>
                                 {formatMoney(currentValue, true)}
                             </span>
-                            <span className={`text-[7px] md:text-[8px] font-medium tracking-tighter leading-none mt-0.5 ${filledDates.has(key) ? 'text-gray-300/60' : 'text-gray-400/80'}`}>
+                            <span className={`text-[7px] md:text-[8px] font-medium tracking-tighter leading-none mt-0.5 ${filledDates.has(key) ? 'text-gray-300/60' : 'text-gray-400/80'} hidden sm:block`}>
                                 {formatAbbreviatedMoney(currentValue)}
                             </span>
                         </div>

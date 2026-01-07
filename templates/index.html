@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="ko">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -23,15 +24,18 @@
             padding-top: 20px;
             padding-bottom: 40px;
         }
+
         .form-container {
             background-color: #f8f9fa;
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 20px;
         }
+
         .table-container {
             margin-top: 30px;
         }
+
         .flash-messages {
             margin-bottom: 20px;
             position: sticky;
@@ -41,6 +45,7 @@
             padding: 10px 0;
             border-bottom: 1px solid #dee2e6;
         }
+
         .editable-field {
             width: 80px;
             min-width: 70px;
@@ -48,29 +53,38 @@
             padding: 4px 6px;
             height: 32px;
         }
+
         .positive-profit {
             color: #198754;
             font-weight: bold;
         }
+
         .negative-profit {
             color: #dc3545;
             font-weight: bold;
         }
+
         .input-group-sm {
             max-width: 150px;
         }
+
         th {
-            white-space: nowrap; /* 모든 th에 적용 */
-            vertical-align: middle; /* 세로 정렬을 중앙으로 맞춤 */
+            white-space: nowrap;
+            /* 모든 th에 적용 */
+            vertical-align: middle;
+            /* 세로 정렬을 중앙으로 맞춤 */
         }
+
         td {
             vertical-align: middle;
         }
+
         /* Portfolio Allocation Styles */
         .portfolio-allocation {
             margin-top: 40px;
             margin-bottom: 40px;
         }
+
         .portfolio-summary {
             background-color: #f8f9fa;
             border-radius: 10px;
@@ -78,21 +92,25 @@
             margin-bottom: 30px;
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
         }
+
         .summary-card {
             padding: 15px;
             margin-bottom: 10px;
             text-align: center;
             border-radius: 8px;
         }
+
         .summary-value {
             font-size: 24px;
             font-weight: bold;
             margin: 10px 0;
         }
+
         .summary-label {
             font-size: 14px;
             color: #6c757d;
         }
+
         /* Chart Styles */
         .chart-container {
             background-color: #f8f9fa;
@@ -101,11 +119,13 @@
             margin-bottom: 30px;
             box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
         }
+
         .chart-canvas {
             max-height: 400px;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
         <h1 class="text-center mb-4">자동 거래 관리 시스템</h1>
@@ -113,7 +133,7 @@
         <!-- Flash Messages -->
         <div class="flash-messages">
             {% for category, message in get_flashed_messages(with_categories=true) %}
-                <div class="alert alert-{{ category }}">{{ message }}</div>
+            <div class="alert alert-{{ category }}">{{ message }}</div>
             {% endfor %}
         </div>
         <div class="market-selector mb-4">
@@ -126,7 +146,7 @@
                 </li>
             </ul>
         </div>
-         <!-- Portfolio Summary Section with Fixed Calculation -->
+        <!-- Portfolio Summary Section with Fixed Calculation -->
         <div class="portfolio-summary">
             <h3 class="text-center mb-4">포트폴리오 요약</h3>
 
@@ -136,9 +156,9 @@
                         <div class="summary-label">총 기여금</div>
                         <div class="summary-value">
                             {% if is_kr_market %}
-                                ₩{{ "{:,.0f}".format(total_contribution) }}
+                            ₩{{ "{:,.0f}".format(total_contribution) }}
                             {% else %}
-                                ${{ "{:,.2f}".format(total_contribution) }}
+                            ${{ "{:,.2f}".format(total_contribution) }}
                             {% endif %}
                         </div>
                     </div>
@@ -148,9 +168,9 @@
                         <div class="summary-label">총 자산 가치</div>
                         <div class="summary-value">
                             {% if is_kr_market %}
-                                ₩{{ "{:,.0f}".format(total_value) }}
+                            ₩{{ "{:,.0f}".format(total_value) }}
                             {% else %}
-                                ${{ "{:,.2f}".format(total_value) }}
+                            ${{ "{:,.2f}".format(total_value) }}
                             {% endif %}
                         </div>
                     </div>
@@ -158,11 +178,12 @@
                 <div class="col-md-3">
                     <div class="summary-card bg-light">
                         <div class="summary-label">총 손익</div>
-                        <div class="summary-value {% if total_profit >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                        <div
+                            class="summary-value {% if total_profit >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
                             {% if is_kr_market %}
-                                ₩{{ "{:,.0f}".format(total_profit) }}
+                            ₩{{ "{:,.0f}".format(total_profit) }}
                             {% else %}
-                                ${{ "{:,.2f}".format(total_profit) }}
+                            ${{ "{:,.2f}".format(total_profit) }}
                             {% endif %}
                         </div>
                     </div>
@@ -170,7 +191,8 @@
                 <div class="col-md-3">
                     <div class="summary-card bg-light">
                         <div class="summary-label">총 수익률</div>
-                        <div class="summary-value {% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                        <div
+                            class="summary-value {% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
                             {{ "{:,.2f}%".format(profit_percent) }}
                         </div>
                     </div>
@@ -231,13 +253,11 @@
                                     {% if allocation.symbol == 'cash' %}bg-secondary
                                     {% elif allocation.percentage > 15 %}bg-danger
                                     {% elif allocation.percentage > 8 %}bg-warning
-                                    {% else %}bg-success{% endif %}"
-                                    role="progressbar"
+                                    {% else %}bg-success{% endif %}" role="progressbar"
                                     style="width: {{ allocation.percentage }}%;"
-                                    aria-valuenow="{{ allocation.percentage }}"
-                                    aria-valuemin="0"
-                                    aria-valuemax="100">
-                                    {% if allocation.percentage > 4 %}{{ "{:.1f}%".format(allocation.percentage|float) }}{% endif %}
+                                    aria-valuenow="{{ allocation.percentage }}" aria-valuemin="0" aria-valuemax="100">
+                                    {% if allocation.percentage > 4 %}{{ "{:.1f}%".format(allocation.percentage|float)
+                                    }}{% endif %}
                                 </div>
                             </div>
                         </td>
@@ -261,6 +281,7 @@
                         <th>사용자 ID</th>
                         <th>계좌번호</th>
                         <th>설명</th>
+                        <th>타입</th>
                         <th>예수금</th>
                         <th>계좌총액</th>
                         <th>기여금</th>
@@ -275,26 +296,45 @@
                         <td>{{ account.user_id }}</td>
                         <td>{{ account.account_number }}</td>
                         <td>{{ account.description }}</td>
+                        <td>
+                            <form action="{{ url_for('update_account_type') }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
+                                <input type="hidden" name="account_id" value="{{ account.id }}">
+                                <select name="account_type" class="form-select form-select-sm" style="width: 110px;"
+                                    onchange="this.form.submit()">
+                                    <option value="NORMAL" {% if account.account_type=='NORMAL' %}selected{% endif %}>일반
+                                    </option>
+                                    <option value="RETIREMENT" {% if account.account_type=='RETIREMENT' %}selected{%
+                                        endif %}>은퇴</option>
+                                    <option value="EXCLUDED" {% if account.account_type=='EXCLUDED' %}selected{% endif
+                                        %}>제외</option>
+                                </select>
+                            </form>
+                        </td>
                         <td>{{ "${:,.2f}".format(account.cash_balance|float) if account.cash_balance else "$0" }}</td>
                         <td>{{ "${:,.2f}".format(account.total_value|float) if account.total_value else "$0.00" }}</td>
                         <td>
-                            <form action="{{ url_for('update_account_contribution') }}" method="post" class="d-inline">
-                                <div class="input-group input-group-sm">
-                                    <input type="hidden" name="market" value="{{ current_market }}">
-                                    <input type="hidden" name="account_id" value="{{ account.id }}">
-                                    <input type="number" step="0.01" class="form-control" name="contribution" value="{{ account.contribution|float|default(0, true) }}" title="기여금">
-                                    <button type="submit" class="btn btn-sm btn-outline-primary">저장</button>
-                                </div>
-                            </form>
+                            {% if account.contribution %}
+                            {{ "${:,.2f}".format(account.contribution|float) if not is_kr_market else
+                            "₩{:,.0f}".format(account.contribution|float) }}
+                            {% else %}
+                            {{ "$0.00" if not is_kr_market else "₩0" }}
+                            {% endif %}
+                            <button class="btn btn-sm btn-outline-info ms-2 view-history-btn"
+                                data-account="{{ account.account_number }}" data-market="{{ current_market }}">
+                                <i class="fas fa-list"></i>
+                            </button>
                         </td>
                         <td>
                             {% if account.contribution and account.contribution > 0 and account.total_value %}
-                                {% set profit_percent = ((account.total_value - account.contribution) / account.contribution * 100)|float %}
-                                <span class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
-                                    {{ "{:.2f}%".format(profit_percent) }}
-                                </span>
+                            {% set profit_percent = ((account.total_value - account.contribution) / account.contribution
+                            * 100)|float %}
+                            <span
+                                class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                {{ "{:.2f}%".format(profit_percent) }}
+                            </span>
                             {% else %}
-                                N/A
+                            N/A
                             {% endif %}
                         </td>
                         <td>{{ account.last_updated }}</td>
@@ -344,43 +384,60 @@
                         {% endif %}
                         <td>
                             <div class="d-flex align-items-center">
-                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_value') }}" method="post" class="d-inline me-2" style="flex: 1;">
+                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_value') }}"
+                                    method="post" class="d-inline me-2" style="flex: 1;">
                                     <input type="hidden" name="market" value="{{ current_market }}">
-                                    <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.limit_value }}" title="한계값">
+                                    <input type="number" step="0.01" class="form-control form-control-sm editable-field"
+                                        name="value" value="{{ rule.limit_value }}" title="한계값">
                                 </form>
-                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_type') }}" method="post" class="d-inline" style="flex: 0 0 auto;">
+                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_type') }}"
+                                    method="post" class="d-inline" style="flex: 0 0 auto;">
                                     <input type="hidden" name="market" value="{{ current_market }}">
-                                    <select name="value" class="form-select form-select-sm" style="width: 70px; font-size: 0.8rem;">
-                                        <option value="price" {% if rule.limit_type == 'price' %}selected{% endif %}>가격</option>
-                                        <option value="percent" {% if rule.limit_type == 'percent' %}selected{% endif %}>%</option>
-                                        <option value="high_percent" {% if rule.limit_type == 'high_percent' %}selected{% endif %}>DIP %</option>
-                                        <option value="weekly" {% if rule.limit_type == 'weekly' %}selected{% endif %}>주간 정기</option>
-                                        <option value="monthly" {% if rule.limit_type == 'monthly' %}selected{% endif %}>월간 정기</option>
+                                    <select name="value" class="form-select form-select-sm"
+                                        style="width: 70px; font-size: 0.8rem;">
+                                        <option value="price" {% if rule.limit_type=='price' %}selected{% endif %}>가격
+                                        </option>
+                                        <option value="percent" {% if rule.limit_type=='percent' %}selected{% endif %}>%
+                                        </option>
+                                        <option value="high_percent" {% if rule.limit_type=='high_percent' %}selected{%
+                                            endif %}>DIP %</option>
+                                        <option value="weekly" {% if rule.limit_type=='weekly' %}selected{% endif %}>주간
+                                            정기</option>
+                                        <option value="monthly" {% if rule.limit_type=='monthly' %}selected{% endif %}>
+                                            월간 정기</option>
                                     </select>
                                 </form>
                             </div>
                         </td>
                         <td>
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}"
+                                method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <input type="number" class="form-control form-control-sm editable-field" name="value" value="{{ rule.target_amount }}" title="목표 수량">
+                                <input type="number" class="form-control form-control-sm editable-field" name="value"
+                                    value="{{ rule.target_amount }}" title="목표 수량">
                             </form>
                         </td>
-                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{% else %}{{ rule.trade_action }}{% endif %}</td>
+                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{% else %}{{
+                            rule.trade_action }}{% endif %}</td>
                         <td>
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}"
+                                method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <input type="number" step="0.01" class="form-control form-control-sm editable-field" name="value" value="{{ rule.daily_money }}" title="일일 투자금" style="width: 100%;">
+                                <input type="number" step="0.01" class="form-control form-control-sm editable-field"
+                                    name="value" value="{{ rule.daily_money }}" title="일일 투자금" style="width: 100%;">
                             </form>
                         </td>
                         <td>
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='cash_only') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='cash_only') }}"
+                                method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
-                                <input type="checkbox" class="form-check-input" name="value" value="1" {% if rule.cash_only %}checked{% endif %}>
+                                <input type="checkbox" class="form-check-input" name="value" value="1" {% if
+                                    rule.cash_only %}checked{% endif %}>
                             </form>
                         </td>
                         <td>
-                            <span class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% elif rule.status == 'PROCESSED' %}info{% else %}secondary{% endif %}">
+                            <span
+                                class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% elif rule.status == 'PROCESSED' %}info{% else %}secondary{% endif %}">
                                 {{ rule.status }}
                             </span>
                         </td>
@@ -389,26 +446,29 @@
                         <td>{{ rule.last_price }}</td>
                         <td>
                             {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
-                                {% set profit_percent = ((rule.last_price - rule.average_price) / rule.average_price * 100)|float %}
-                                <span class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
-                                    {{ "{:.2f}%".format(profit_percent) }}
-                                </span>
+                            {% set profit_percent = ((rule.last_price - rule.average_price) / rule.average_price *
+                            100)|float %}
+                            <span
+                                class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                {{ "{:.2f}%".format(profit_percent) }}
+                            </span>
                             {% else %}
-                                N/A
+                            N/A
                             {% endif %}
                         </td>
                         <td>
                             {% if rule.last_price and rule.high_price and rule.high_price > 0 %}
-                                {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price * 100)|float %}
-                                <span class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
-                                    {{ "{:.2f}%".format(drop_percent) }}
-                                </span>
+                            {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price * 100)|float %}
+                            <span class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
+                                {{ "{:.2f}%".format(drop_percent) }}
+                            </span>
                             {% else %}
-                                N/A
+                            N/A
                             {% endif %}
                         </td>
                         <td>
-                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post" class="d-inline">
+                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post"
+                                class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
                                     <option value="">상태변경</option>
@@ -486,7 +546,8 @@
                         <div class="mb-3">
                             <label for="limit_value" class="form-label">한계값</label>
                             <div class="input-group">
-                                <input type="number" step="0.01" class="form-control" id="limit_value" name="limit_value" required>
+                                <input type="number" step="0.01" class="form-control" id="limit_value"
+                                    name="limit_value" required>
                                 <select class="form-select" id="limit_type" name="limit_type" style="max-width:100px;">
                                     <option value="price">가격</option>
                                     <option value="percent">%</option>
@@ -504,11 +565,13 @@
                         </div>
                         <div class="mb-3">
                             <label for="daily_money" class="form-label">일일 투자금</label>
-                            <input type="number" step="0.01" class="form-control" id="daily_money" name="daily_money" required>
+                            <input type="number" step="0.01" class="form-control" id="daily_money" name="daily_money"
+                                required>
                         </div>
                         <div class="mb-3">
                             <div class="form-check">
-                                <input type="checkbox" class="form-check-input" id="cash_only" name="cash_only" {% if current_market == 'kr' %}checked{% endif %}>
+                                <input type="checkbox" class="form-check-input" id="cash_only" name="cash_only" {% if
+                                    current_market=='kr' %}checked{% endif %}>
                                 <label class="form-check-label" for="cash_only">현금 잔고 내에서만 매수</label>
                             </div>
                         </div>
@@ -519,16 +582,54 @@
         </div>
     </div>
 
+    <!-- History Modal -->
+    <div class="modal fade" id="historyModal" tabindex="-1" aria-labelledby="historyModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="historyModalLabel">Transaction History</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="historyLoading" class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                    <div id="historyContent" style="display:none;">
+                        <h6 id="historyAccountTitle"></h6>
+                        <table class="table table-sm table-hover">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Type</th>
+                                    <th>Amount</th>
+                                    <th>Description</th>
+                                </tr>
+                            </thead>
+                            <tbody id="historyTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script>
         // limit_type 변경 시 입력 필드 유효성 검사
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', function () {
             const limitTypeSelect = document.getElementById('limit_type');
             const limitValueInput = document.getElementById('limit_value');
 
             if (limitTypeSelect && limitValueInput) {
-                limitTypeSelect.addEventListener('change', function() {
+                limitTypeSelect.addEventListener('change', function () {
                     if (this.value === 'weekly') {
                         limitValueInput.placeholder = '요일 (0:월 ~ 6:일)';
                         limitValueInput.min = 0;
@@ -552,7 +653,7 @@
             // 스크롤 위치 유지를 위한 AJAX 폼 제출 처리
             function handleFormSubmit(event) {
                 event.preventDefault();
-                
+
                 const form = event.target;
                 const formData = new FormData(form);
                 const currentScrollPosition = window.scrollY;
@@ -563,49 +664,49 @@
                     method: 'POST',
                     body: formData
                 })
-                .then(response => {
-                    if (response.ok) {
-                        window.scrollTo(0, currentScrollPosition);
+                    .then(response => {
+                        if (response.ok) {
+                            window.scrollTo(0, currentScrollPosition);
 
-                        flashMessagesContainer.innerHTML = `
+                            flashMessagesContainer.innerHTML = `
                             <div class="alert alert-success alert-dismissible fade show" role="alert">
                                 <strong>성공!</strong> 값이 업데이트되었습니다.
                                 <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                             </div>
                         `;
 
-                        // 3초 후 메시지 자동 제거
-                        setTimeout(() => {
-                            flashMessagesContainer.innerHTML = '';
-                        }, 3000);
-                    } else {
-                        throw new Error(`Network response was not ok: ${response.status}`);
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    
-                    // 에러 시 메시지 표시
-                    flashMessagesContainer.innerHTML = `
+                            // 3초 후 메시지 자동 제거
+                            setTimeout(() => {
+                                flashMessagesContainer.innerHTML = '';
+                            }, 3000);
+                        } else {
+                            throw new Error(`Network response was not ok: ${response.status}`);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+
+                        // 에러 시 메시지 표시
+                        flashMessagesContainer.innerHTML = `
                         <div class="alert alert-danger alert-dismissible fade show" role="alert">
                             <strong>오류!</strong> 값 업데이트에 실패했습니다.
                             <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                         </div>
                     `;
-                    
-                    setTimeout(() => {
-                        flashMessagesContainer.innerHTML = '';
-                    }, 3000);
-                });
+
+                        setTimeout(() => {
+                            flashMessagesContainer.innerHTML = '';
+                        }, 3000);
+                    });
             }
 
             // 모든 업데이트 폼에 대해 AJAX 처리 적용
-            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"]');
-            
+            const updateForms = document.querySelectorAll('form[action*="update_field"], form[action*="update_account_contribution"], form[action*="update_account_type"]');
+
             updateForms.forEach(form => {
                 // 폼 제출 이벤트 리스너 추가
                 form.addEventListener('submit', handleFormSubmit);
-                
+
                 // 입력 필드에 change 이벤트 리스너 추가
                 const changeInputs = form.querySelectorAll('input[type="number"], input[type="text"], select, input[type="checkbox"]');
                 changeInputs.forEach(input => {
@@ -617,9 +718,63 @@
                     });
                 });
             });
+
+            // History Modal Logic
+            const historyModal = new bootstrap.Modal(document.getElementById('historyModal'));
+            const historyContent = document.getElementById('historyContent');
+            const historyLoading = document.getElementById('historyLoading');
+            const historyTableBody = document.getElementById('historyTableBody');
+            const historyAccountTitle = document.getElementById('historyAccountTitle');
+
+            document.querySelectorAll('.view-history-btn').forEach(btn => {
+                btn.addEventListener('click', function () {
+                    const accountNum = this.getAttribute('data-account');
+                    const market = this.getAttribute('data-market');
+
+                    historyAccountTitle.textContent = `Account: ${accountNum}`;
+                    historyLoading.style.display = 'block';
+                    historyContent.style.display = 'none';
+                    historyTableBody.innerHTML = '';
+                    historyModal.show();
+
+                    fetch(`/api/history/${accountNum}?market=${market}`)
+                        .then(response => response.json())
+                        .then(data => {
+                            historyLoading.style.display = 'none';
+                            historyContent.style.display = 'block';
+
+                            if (data.history && data.history.length > 0) {
+                                data.history.forEach(tx => {
+                                    const row = document.createElement('tr');
+                                    // Formatting amount
+                                    let amt = parseFloat(tx.amount);
+                                    let formattedAmt = amt.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                                    // Simple styling
+                                    let amtClass = amt >= 0 ? 'text-success' : 'text-danger';
+
+                                    row.innerHTML = `
+                                        <td>${tx.transaction_date.substring(0, 10)}</td>
+                                        <td>${tx.type}</td>
+                                        <td class="${amtClass}">${formattedAmt}</td>
+                                        <td class="small text-muted">${tx.description}</td>
+                                    `;
+                                    historyTableBody.appendChild(row);
+                                });
+                            } else {
+                                historyTableBody.innerHTML = '<tr><td colspan="4" class="text-center">No history found.</td></tr>';
+                            }
+                        })
+                        .catch(err => {
+                            console.error(err);
+                            historyLoading.style.display = 'none';
+                            historyTableBody.innerHTML = `<tr><td colspan="4" class="text-danger">Error loading history: ${err}</td></tr>`;
+                            historyContent.style.display = 'block';
+                        });
+                });
+            });
         });
     </script>
- <!-- Chart.js Script -->
+    <!-- Chart.js Script -->
     {% if daily_total_values %}
     <script>
         // 차트 데이터 준비
@@ -692,30 +847,30 @@
                                 text: '자산 가치 ($)'
                             },
                             ticks: {
-                                callback: function(value, index, values) {
+                                callback: function (value, index, values) {
                                     // 'is_kr_market' 변수를 사용하여 원화(₩) 또는 달러($)를 동적으로 표시
                                     {% if is_kr_market %}
-                                        return '₩' + value.toLocaleString();
+                                    return '₩' + value.toLocaleString();
                                     {% else %}
                                         return '$' + value.toLocaleString();
                                     {% endif %}
-                                }
+        }
                             }
                         }
                     },
-                    elements: {
-                        point: {
-                            hoverRadius: 8
-                        }
-                    }
+        elements: {
+            point: {
+                hoverRadius: 8
+            }
+        }
                 }
             };
 
-            try {
-                const totalValueChart = new Chart(ctx, chartConfig);
-            } catch (error) {
-                console.error('Error creating chart:', error);
-            }
+        try {
+            const totalValueChart = new Chart(ctx, chartConfig);
+        } catch (error) {
+            console.error('Error creating chart:', error);
+        }
         }
     </script>
     {% else %}
@@ -724,4 +879,5 @@
     </script>
     {% endif %}
 </body>
+
 </html>

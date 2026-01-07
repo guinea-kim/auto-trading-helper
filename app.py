@@ -36,7 +36,8 @@ def index():
         current_db_handler = us_db_handler
 
     # 데이터 가져오기
-    accounts = current_db_handler.get_accounts()
+    use_dynamic = (market == 'us')
+    accounts = current_db_handler.get_accounts(use_dynamic_contribution=use_dynamic)
     trading_rules = current_db_handler.get_trading_rules()
 
     # 종목별 합산된 포트폴리오 배분 데이터 가져오기 (계좌 상관없이)
@@ -175,6 +176,27 @@ def update_account_contribution():
 
         return redirect(url_for('index', market=market))
 
+@app.route('/account/update_type', methods=['POST'])
+def update_account_type():
+    """계정의 타입 업데이트"""
+    if request.method == 'POST':
+        account_id = request.form.get('account_id')
+        account_type = request.form.get('account_type')
+        market = request.form.get('market', 'us')
+        current_db_handler = us_db_handler if market == 'us' else kr_db_handler
+        
+        if not account_id or not account_type:
+            flash("Account ID and Type are required", "danger")
+            return redirect(url_for('index', market=market))
+
+        try:
+            current_db_handler.update_account_type(account_id, account_type)
+            flash(f"Account {account_id} type updated to {account_type}!", "success")
+        except Exception as e:
+            flash(f"Error: {str(e)}", "danger")
+
+        return redirect(url_for('index', market=market))
+
 @app.route('/rule/update/<int:rule_id>', methods=['POST'])
 def update_rule_status(rule_id):
     status = request.form.get('status')
@@ -200,6 +222,32 @@ def get_highest_price(symbol):
     # US market만 지원
     highest_price = us_db_handler.get_highest_price(symbol)
     return {'symbol': symbol, 'highest_price': highest_price}
+
+
+@app.route('/api/history/<account_number>', methods=['GET'])
+def get_contribution_history_api(account_number):
+    try:
+        # Determine market handler if needed, but history is likely same DB structure
+        # Assuming US DB handler is primary for now or based on current market context?
+        # The history table is in the main DB.
+        # Since 'contribution_history' is likely in the same DB as 'accounts', 
+        # and we saw both us_db_handler and kr_db_handler share the same DB connection logic (just different DB names).
+        # We should check both or rely on a query parameter?
+        # Actually, accounts table has 'market' implied? No, `add_account` uses us or kr db handler.
+        # Let's check which DB the account is in.
+        
+        # Simple approach: Check US first, if empty, check KR? 
+        # Or better: Pass 'market' query param.
+        market = request.args.get('market', 'us')
+        if market == 'kr':
+            return {'account_number': account_number, 'history': []}
+
+        db_handler = us_db_handler if market == 'us' else kr_db_handler
+        
+        history = db_handler.get_contribution_history(account_number)
+        return {'account_number': account_number, 'history': history}
+    except Exception as e:
+        return {'error': str(e)}, 500
 
 
 @app.route('/api/daily-assets', methods=['GET'])

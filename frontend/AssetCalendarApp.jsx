@@ -11,7 +11,12 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     const [assetData, setAssetData] = useState({}); // { "YYYY-MM-DD": value (ALWAYS IN USD) }
     const [contributionData, setContributionData] = useState({}); // { "YYYY-MM-DD": value } (Daily Transaction Sum)
     const [selectedDate, setSelectedDate] = useState(null);
-    const [inputValue, setInputValue] = useState('');
+    // Removed old inputValue state
+    const [breakdownData, setBreakdownData] = useState([]);
+    const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(false);
+    const [editValues, setEditValues] = useState({}); // { record_id: string_value }
+    const [prevContext, setPrevContext] = useState(null); // { date: str, data: map { account_id: val } }
+    const [nextContext, setNextContext] = useState(null); // { date: str, data: map { account_id: val } }
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [hoveredMonthStats, setHoveredMonthStats] = useState(null);
     const [isMockData, setIsMockData] = useState(false);
@@ -197,46 +202,157 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         setCurrentDate(newDate);
     };
 
-    const handleDateClick = (dateStr) => {
-        setSelectedDate(dateStr);
-        // 입력창 초기값 설정: 저장된 USD 값을 현재 통화에 맞춰 변환해서 보여줌
-        const usdVal = assetData[dateStr];
-        if (usdVal !== undefined) {
-            // If KRW, the data is already KRW, so no conversion needed for display
-            const displayVal = currency === 'KRW' ? usdVal : usdVal;
-            setInputValue(displayVal);
-        } else {
-            setInputValue('');
+    const handleBackdropClick = (e) => {
+        if (e.target === e.currentTarget) {
+            closeModal();
         }
-        setIsModalOpen(true);
     };
 
-    const handleSaveInput = (e) => {
-        e.preventDefault();
-        if (!selectedDate) return;
+    const handleDateClick = async (dateStr) => {
+        setSelectedDate(dateStr);
+        setIsModalOpen(true);
+        setIsLoadingBreakdown(true);
+        setBreakdownData([]);
+        setEditValues({});
+        setPrevContext(null); // Reset prev context
+        setNextContext(null); // Reset next context
 
-        // 입력된 값을 숫자로 변환 (콤마 제거)
-        const rawVal = parseInt(inputValue.toString().replace(/,/g, ''), 10);
-        const newData = { ...assetData };
+        try {
+            const marketParam = currency === 'KRW' ? 'kr' : 'us';
+            const response = await fetch(`/api/daily-assets/breakdown?date=${dateStr}&market=${marketParam}`);
+            const data = await response.json();
 
-        if (isNaN(rawVal)) {
-            delete newData[selectedDate];
-        } else {
-            // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산하여 저장
-            let usdToSave = rawVal;
-            // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산... 하지 않음. API가 KRW를 받는지 확인 필요.
-            // 하지만 이 앱은 Read-only 대시보드가 주 목적.
-            // 만약 저장을 지원한다면, KRW 모드일 땐 KRW 그대로 저장해야 함 (API가 문맥을 알기 때문)
-            // 기존 로직: usdToSave = Math.round(rawVal / EXCHANGE_RATE);
-            // 수정 로직: 그대로 저장 (API endpoint logic depends on market param)
-            if (currency === 'KRW') {
-                usdToSave = rawVal;
+            if (response.ok) {
+                // Handle new structure { current, prev, next }
+                // Fallback for backward compatibility if backend returns array
+                const currentData = Array.isArray(data) ? data : data.current;
+                setBreakdownData(currentData);
+
+                // Process Context
+                if (!Array.isArray(data)) {
+                    if (data.prev && data.prev.data) {
+                        const map = {};
+                        data.prev.data.forEach(d => map[d.account_id] = d.amount);
+                        setPrevContext({ date: data.prev.date, data: map });
+                    } else {
+                        setPrevContext(null);
+                    }
+
+                    if (data.next && data.next.data) {
+                        const map = {};
+                        data.next.data.forEach(d => map[d.account_id] = d.amount);
+                        setNextContext({ date: data.next.date, data: map });
+                    } else {
+                        setNextContext(null);
+                    }
+                } else {
+                    setPrevContext(null);
+                    setNextContext(null);
+                }
+
+                // Initialize edit values
+                const initialEdits = {};
+                currentData.forEach(item => {
+                    initialEdits[item.id] = item.amount;
+                });
+                setEditValues(initialEdits);
+            } else {
+                console.error("Failed to fetch breakdown:", data.message);
+                setBreakdownData([]);
             }
-            newData[selectedDate] = usdToSave;
+        } catch (error) {
+            console.error("Error fetching breakdown:", error);
+        } finally {
+            setIsLoadingBreakdown(false);
+        }
+    };
+
+    const handleInputChange = (recordId, value) => {
+        const rawVal = value.replace(/,/g, '');
+        if (!isNaN(rawVal)) {
+            setEditValues(prev => ({
+                ...prev,
+                [recordId]: rawVal
+            }));
+        }
+    };
+
+    const handleUpdateAccount = async (recordId, currentAmount) => {
+        const newValStr = editValues[recordId];
+        if (newValStr === undefined || newValStr === '') return;
+
+        const rawVal = parseFloat(newValStr.toString().replace(/,/g, ''));
+        if (isNaN(rawVal)) {
+            alert("Please enter a valid number.");
+            return;
         }
 
-        saveAssetData(newData);
-        setIsModalOpen(false);
+        if (rawVal === currentAmount) return;
+
+        const market = currency === 'KRW' ? 'kr' : 'us';
+
+        try {
+            const response = await fetch('/api/daily-assets/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: selectedDate,
+                    amount: rawVal,
+                    record_id: recordId,
+                    currency: currency,
+                    market: market,
+                    dry_run: true
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'error') {
+                alert(`Error: ${result.message}`);
+                return;
+            }
+
+            const confirmMsg = `
+[Confirm Update]
+Table: ${result.target_table}
+AccountType: ${result.target_account} (ID: ${result.target_id})
+
+Current Total: ${formatMoney(result.current_value)}
+New Total: ${formatMoney(result.new_value)}
+Difference: ${formatMoney(result.diff)}
+
+Are you sure you want to update the database?`;
+
+            if (window.confirm(confirmMsg)) {
+                const finalResponse = await fetch('/api/daily-assets/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        amount: rawVal,
+                        record_id: recordId,
+                        currency: currency,
+                        market: market,
+                        dry_run: false
+                    })
+                });
+
+                const finalResult = await finalResponse.json();
+
+                if (finalResult.status === 'success') {
+                    setBreakdownData(prev => prev.map(item =>
+                        item.id === recordId ? { ...item, amount: rawVal } : item
+                    ));
+                    alert("Update successful. Calendar will update on refresh.");
+                } else {
+                    alert(`Update failed: ${finalResult.message}`);
+                }
+            }
+
+        } catch (error) {
+            console.error("Update error:", error);
+            alert("Failed to update daily asset.");
+        }
     };
     const closeModal = () => setIsModalOpen(false);
 
@@ -359,7 +475,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
 
     // --- 데이터 계산 (useMemo) ---
     const rangeStats = useMemo(() => {
-        const { startDay, endDay } = getViewRange();
+        const { startDay } = getViewRange();
 
         const keysInView = [];
         for (let i = 0; i < 35; i++) {
@@ -591,27 +707,106 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
             {/* 입력 모달 */}
             {
                 isModalOpen && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4 backdrop-blur-sm">
-                        <div className="bg-white rounded-xl shadow-2xl w-full max-w-xs p-5 transform transition-all scale-100">
-                            <div className="flex justify-between items-center mb-4">
-                                <h3 className="text-base font-bold text-gray-800 flex items-center gap-2"><CalendarIcon className="w-4 h-4 text-blue-600" /> {selectedDate}</h3>
-                                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600"><X className="w-5 h-5" /></button>
+                    <div
+                        className="fixed inset-0 z-50 flex items-center justify-center bg-black/10 p-4 backdrop-blur-[2px]"
+                        onClick={handleBackdropClick}
+                    >
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-[700px] px-6 pt-6 pb-8 transform transition-all scale-100 flex flex-col max-h-[80vh]">
+                            <div className="flex justify-between items-center mb-4 border-b border-gray-100 pb-3">
+                                <h3 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                                    <CalendarIcon className="w-5 h-5 text-blue-600" />
+                                    {selectedDate}
+                                </h3>
+                                <button onClick={closeModal} className="text-gray-400 hover:text-gray-600 p-1.5 rounded-full hover:bg-gray-100 transition-colors">
+                                    <X className="w-5 h-5" />
+                                </button>
                             </div>
-                            <form onSubmit={handleSaveInput}>
-                                <div className="mb-4">
-                                    <label className="block text-xs font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Total Assets ({currency})</label>
-                                    <div className="relative">
-                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                            {currency === 'USD' ? <DollarSign className="w-4 h-4 text-gray-400" /> : <span className="text-gray-400 font-bold text-sm">₩</span>}
-                                        </div>
-                                        <input type="text" className="block w-full pl-9 pr-3 py-2.5 border-gray-200 border rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none text-lg font-bold tabular-nums text-gray-800 placeholder-gray-300 transition-all" placeholder="0" value={typeof inputValue === 'number' ? inputValue.toLocaleString() : inputValue} onChange={(e) => { const rawVal = e.target.value.replace(/,/g, ''); if (!isNaN(rawVal)) setInputValue(rawVal); }} autoFocus />
+
+                            <div className="overflow-y-auto flex-1 pr-1">
+                                {isLoadingBreakdown ? (
+                                    <div className="flex justify-center items-center py-10">
+                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                                     </div>
-                                </div>
-                                <div className="flex gap-2">
-                                    <button type="button" onClick={closeModal} className="flex-1 px-3 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors">Cancel</button>
-                                    <button type="submit" className="flex-1 px-3 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 shadow-sm transition-colors flex justify-center items-center gap-1.5"><Save className="w-3.5 h-3.5" />Save</button>
-                                </div>
-                            </form>
+                                ) : (
+                                    <div className="space-y-0">
+                                        {breakdownData.length === 0 ? (
+                                            <p className="text-center text-sm text-gray-500 py-4">No account data found.</p>
+                                        ) : (
+                                            <>
+                                                {/* Header Row */}
+                                                <div className="grid grid-cols-[1fr_120px_200px_120px] gap-2 px-3 py-2 border-b border-gray-200 text-xs text-gray-500 font-bold uppercase tracking-wider items-center bg-gray-50 rounded-t-lg">
+                                                    <div className="text-left pl-1">Account</div>
+                                                    <div
+                                                        className={`text-right font-normal normal-case transition-colors ${prevContext ? 'text-blue-500 hover:text-blue-700 hover:underline cursor-pointer' : 'text-gray-300'}`}
+                                                        onClick={() => prevContext && handleDateClick(prevContext.date)}
+                                                        title={prevContext ? `Go to ${prevContext.date}` : ''}
+                                                    >
+                                                        {prevContext ? prevContext.date.slice(5) : ''}
+                                                    </div>
+                                                    <div className="text-center font-normal normal-case text-gray-900 font-bold bg-blue-50/50 rounded px-1.5 py-0.5 mx-auto">
+                                                        Current
+                                                    </div>
+                                                    <div
+                                                        className={`text-left pl-1 font-normal normal-case transition-colors ${nextContext ? 'text-blue-500 hover:text-blue-700 hover:underline cursor-pointer' : 'text-gray-300'}`}
+                                                        onClick={() => nextContext && handleDateClick(nextContext.date)}
+                                                        title={nextContext ? `Go to ${nextContext.date}` : ''}
+                                                    >
+                                                        {nextContext ? nextContext.date.slice(5) : ''}
+                                                    </div>
+                                                </div>
+
+                                                {breakdownData.map((item) => (
+                                                    <div key={item.id} className="grid grid-cols-[1fr_120px_200px_120px] gap-2 px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors items-center h-12">
+                                                        <div className="min-w-0 flex flex-col justify-center pl-1">
+                                                            <span className="text-[10px] text-gray-500 font-medium truncate tracking-wide mb-0.5" title={item.user_id}>
+                                                                {item.user_id}
+                                                            </span>
+                                                            <span className="text-sm font-bold text-gray-900 truncate leading-none" title={item.description || item.account_id}>
+                                                                {item.description || item.account_id}
+                                                            </span>
+                                                        </div>
+
+                                                        <div className="text-right text-xs text-gray-500 tabular-nums font-medium">
+                                                            {prevContext && prevContext.data[item.account_id] !== undefined
+                                                                ? formatMoney(prevContext.data[item.account_id])
+                                                                : '-'
+                                                            }
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1 shadow-sm rounded bg-white border border-gray-300 px-2 h-7 focus-within:ring-1 focus-within:ring-blue-500 focus-within:border-blue-500">
+                                                            <div className="flex items-center flex-1 min-w-0">
+                                                                {currency === 'USD' ? <DollarSign className="w-3 h-3 text-gray-400 shrink-0" /> : <span className="text-gray-400 font-bold text-[10px] shrink-0">₩</span>}
+                                                                <input
+                                                                    type="text"
+                                                                    className="w-full text-right border-none p-0 focus:ring-0 text-sm font-bold tabular-nums text-gray-900 bg-transparent outline-none h-full min-w-0"
+                                                                    placeholder="0"
+                                                                    value={editValues[item.id] !== undefined ? parseInt(editValues[item.id]).toLocaleString() : item.amount.toLocaleString()}
+                                                                    onChange={(e) => handleInputChange(item.id, e.target.value)}
+                                                                />
+                                                            </div>
+                                                            <div className="h-4 w-px bg-gray-200 mx-1 shrink-0"></div>
+                                                            <button
+                                                                onClick={() => handleUpdateAccount(item.id, item.amount)}
+                                                                className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 shrink-0"
+                                                                title="Save"
+                                                            >
+                                                                <Save className="w-4 h-4" />
+                                                            </button>
+                                                        </div>
+
+                                                        <div className="text-left pl-1 text-xs text-gray-500 tabular-nums font-medium">
+                                                            {nextContext && nextContext.data[item.account_id] !== undefined
+                                                                ? formatMoney(nextContext.data[item.account_id])
+                                                                : '-'
+                                                            }
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     </div>
                 )

@@ -596,6 +596,131 @@ class DatabaseHandler:
             print(f"Warning: Failed to fetch daily contributions ({e})")
             return {}
 
+    def get_daily_records_by_date(self, date_str: str, symbol: str = 'total') -> list:
+        """
+        특정 날짜와 심볼에 해당하는 daily_records 조회
+        """
+        try:
+            sql = """
+                SELECT id, record_date, account_id, symbol, amount
+                FROM daily_records
+                WHERE record_date = :date_str AND symbol = :symbol
+                ORDER BY id ASC
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str, "symbol": symbol})
+                return [dict(row._mapping) for row in result]
+        except Exception as e:
+            print(f"Error fetching daily records: {e}")
+            return []
+
+    def get_daily_records_breakdown(self, date_str: str) -> list:
+        """
+        특정 날짜의 daily_records를 계좌 정보와 함께 조회 (symbol='total'만)
+        """
+        try:
+            sql = """
+                SELECT dr.id, dr.record_date, dr.account_id, dr.symbol, dr.amount, a.description, a.user_id
+                FROM daily_records dr
+                LEFT JOIN accounts a ON dr.account_id = a.id
+                WHERE dr.record_date = :date_str AND dr.symbol = 'total'
+                ORDER BY dr.account_id
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str})
+                rows = []
+                for row in result:
+                    d = dict(row._mapping)
+                    if isinstance(d['amount'], decimal.Decimal):
+                        d['amount'] = float(d['amount'])
+                    if d['record_date']:
+                        d['record_date'] = str(d['record_date'])
+                    rows.append(d)
+                return rows
+        except Exception as e:
+            print(f"Error fetching daily breakdown: {e}")
+            return []
+
+    def get_adjacent_date(self, date_str: str, direction: str = 'prev') -> str:
+        """
+        주어진 날짜 기준으로 이전(prev) 또는 다음(next) 데이터가 있는 날짜를 조회.
+        Returns:
+            str: "YYYY-MM-DD" or None
+        """
+        try:
+            op = '<' if direction == 'prev' else '>'
+            order = 'DESC' if direction == 'prev' else 'ASC'
+            
+            sql = f"""
+                SELECT record_date
+                FROM daily_records
+                WHERE record_date {op} :date_str AND symbol = 'total'
+                ORDER BY record_date {order}
+                LIMIT 1
+            """
+            
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str}).fetchone()
+                if result:
+                    return str(result[0])
+                return None
+        except Exception as e:
+            print(f"Error fetching adjacent date ({direction}): {e}")
+            return None
+
+    def update_daily_record(self, record_id: int, amount: float):
+        """
+        특정 daily_record 업데이트
+        """
+        try:
+            sql = """
+                UPDATE daily_records
+                SET amount = :amount
+                WHERE id = :record_id
+            """
+            with self.engine.begin() as conn:
+                conn.execute(text(sql), {"amount": amount, "record_id": record_id})
+        except Exception as e:
+            print(f"Error updating daily record {record_id}: {e}")
+            raise
+
+    def update_daily_total_value(self, date_str: str, new_total_value: float, dry_run: bool = False) -> dict:
+        """
+        해당 날짜의 총 자산 가치를 업데이트.
+        여러 계좌가 있을 경우, 첫 번째 계좌의 total 값을 조정하여 전체 합을 맞춤.
+        
+        Returns:
+            dict: 업데이트 계획 또는 결과 정보
+        """
+        records = self.get_daily_records_by_date(date_str, 'total')
+        
+        if not records:
+            return {"status": "error", "message": "No records found for this date"}
+            
+        current_total = sum(float(r['amount']) for r in records)
+        diff = new_total_value - current_total
+        
+        # 첫 번째 기록에 차액 반영
+        target_record = records[0]
+        original_amount = float(target_record['amount'])
+        new_amount = original_amount + diff
+        
+        plan = {
+            "status": "success",
+            "target_table": "daily_records",
+            "target_id": target_record['id'],
+            "target_account": target_record['account_id'],
+            "current_value": original_amount,
+            "new_value": new_amount,
+            "diff": diff,
+            "dry_run": dry_run
+        }
+        
+        if not dry_run:
+            self.update_daily_record(target_record['id'], new_amount)
+            plan["executed"] = True
+            
+        return plan
 
     def execute_many(self, sql: str, args: list) -> None:
         """Execute multiple SQL statements (bulk insert/update)"""

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import os
 from library import secret
 from library.mysql_helper import DatabaseHandler
@@ -276,6 +276,125 @@ def get_daily_assets():
         "assets": assets_map,
         "contributions": contributions_map
     }
+
+@app.route('/api/daily-assets/breakdown', methods=['GET'])
+def get_daily_assets_breakdown():
+    date_str = request.args.get('date')
+    market = request.args.get('market', 'us')
+
+    if not date_str:
+        return jsonify({"status": "error", "message": "Missing date parameter"}), 400
+
+    # Determine DB handler based on market
+    if market == 'kr':
+        handler = kr_db_handler
+    else:
+        handler = us_db_handler
+
+    try:
+        current_data = handler.get_daily_records_breakdown(date_str)
+        
+        # Fetch adjacent context
+        prev_date = handler.get_adjacent_date(date_str, 'prev')
+        next_date = handler.get_adjacent_date(date_str, 'next')
+        
+        prev_data = handler.get_daily_records_breakdown(prev_date) if prev_date else []
+        next_data = handler.get_daily_records_breakdown(next_date) if next_date else []
+
+        return jsonify({
+            "current": current_data,
+            "prev": {"date": prev_date, "data": prev_data} if prev_date else None,
+            "next": {"date": next_date, "data": next_data} if next_date else None
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/daily-assets/update', methods=['POST'])
+def update_daily_asset():
+    data = request.json
+    date_str = data.get('date')
+    amount = data.get('amount')
+    record_id = data.get('record_id') # Optional: if updating specific record
+    currency = data.get('currency', 'USD')
+    dry_run = data.get('dry_run', False)
+    market = data.get('market', 'us')
+
+    if not date_str or amount is None:
+        return jsonify({"status": "error", "message": "Missing date or amount"}), 400
+
+    # Determine DB handler based on market
+    if market == 'kr':
+        handler = kr_db_handler
+    else:
+        handler = us_db_handler # Corrected from 'db_handler' to 'us_db_handler'
+
+    try:
+        current_amount = float(amount)
+        
+        if record_id:
+             # Case 1: Updating specific record (Account Level)
+             # Fetch current record for diff calculation
+             # We need a new method or reuse get_daily_records_by_date logic but filtered by ID?
+             # Or just use the update method logic.
+             # Ideally, mysql_helper should handle this "Plan" generation for single record too.
+             # Let's add a robust internal method in mysql_helper or do it here?
+             # Better to keep logic in mysql_helper. Let's assume we update update_daily_total_value to handle record_id OR move logic.
+             
+             # Actually, let's implement a specific method in mysql_helper for single record update with plan
+             # But for now, since I can't easily edit mysql_helper again in this turn without delay, 
+             # I will assume I can implement the logic here using available methods? 
+             # No, better to add `update_daily_record_with_plan` in mysql_helper.
+             # Wait, I already added `update_daily_record` (simple update).
+             # I need to fetch the record first to calculate diff.
+             
+             # Let's implement logic here:
+             # 1. Fetch record by ID (need query? `get_daily_records_by_date` fetches all for date...)
+             # Let's use `get_daily_records_breakdown` and filter in python (not efficient but works for small N)
+             # OR just fetch the row from DB.
+             # Since I don't have `get_record_by_id`, I'll rely on the frontend passing the correct OLD value? 
+             # No, security risk and race condition. 
+             # I should query the DB.
+             
+             # Re-reading mysql_helper.py... 
+             # I added `update_daily_record(record_id, amount)`.
+             # I DO NOT have `get_record_by_id`.
+             
+             # I will use `get_daily_records_breakdown(date_str)` and find the matching ID.
+             records = handler.get_daily_records_breakdown(date_str)
+             target_record = next((r for r in records if r['id'] == record_id), None)
+             
+             if not target_record:
+                 return jsonify({"status": "error", "message": "Record not found"}), 404
+                 
+             original_amount = float(target_record['amount'])
+             diff = current_amount - original_amount
+             
+             plan = {
+                "status": "success",
+                "target_table": "daily_records",
+                "target_id": record_id,
+                "target_account": target_record['account_id'], # breakdown includes account_id
+                "current_value": original_amount,
+                "new_value": current_amount,
+                "diff": diff,
+                "dry_run": dry_run
+             }
+             
+             if not dry_run:
+                 handler.update_daily_record(record_id, current_amount)
+                 plan["executed"] = True
+                 
+             return jsonify(plan)
+             
+        else:
+            # Case 2: Updating Total (Legacy / Global) - Distributes to first account
+            result = handler.update_daily_total_value(date_str, current_amount, dry_run=dry_run)
+            return jsonify(result)
+            
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):

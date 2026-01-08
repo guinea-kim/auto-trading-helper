@@ -392,15 +392,16 @@ class DatabaseHandler:
     def add_daily_result(self, today, account_id, cash_balance, total_value, etfs):
         sql = """
                     INSERT INTO daily_records 
-                    (record_date, account_id, symbol, amount)
-                    VALUES (:today, :account_id, :symbol, :amount)
+                    (record_date, account_id, symbol, amount, quantity)
+                    VALUES (:today, :account_id, :symbol, :amount, :quantity)
                 """
         with self.engine.connect() as conn:
             conn.execute(text(sql), {
                 "today": today,
                 "account_id": account_id,
                 "symbol": "cash",
-                "amount": cash_balance
+                "amount": cash_balance,
+                "quantity": None
             })
             conn.commit()
         with self.engine.connect() as conn:
@@ -408,7 +409,8 @@ class DatabaseHandler:
                 "today": today,
                 "account_id": account_id,
                 "symbol": "total",
-                "amount": total_value
+                "amount": total_value,
+                "quantity": None
             })
             conn.commit()
         for etf in etfs:
@@ -421,7 +423,8 @@ class DatabaseHandler:
                     "today": today,
                     "account_id": account_id,
                     "symbol": etf,
-                    "amount": etf_value
+                    "amount": etf_value,
+                    "quantity": float(etf_data['quantity'])
                 })
                 conn.commit()
     
@@ -466,7 +469,7 @@ class DatabaseHandler:
 
         # 해당 날짜의 모든 종목별 평가금액 합산 (계좌 상관없이 symbol로 그룹화)
         consolidated_sql = """
-            SELECT symbol, SUM(amount) as total_value
+            SELECT symbol, SUM(amount) as total_value, SUM(quantity) as total_quantity
             FROM daily_records
             WHERE record_date = :latest_date AND symbol != 'total'
             GROUP BY symbol
@@ -496,6 +499,8 @@ class DatabaseHandler:
             for row in consolidated_result:
                 allocation = dict(row._mapping)
                 allocation['percentage'] = (allocation['total_value'] / total_value) * 100
+                if 'total_quantity' in allocation and isinstance(allocation['total_quantity'], decimal.Decimal):
+                    allocation['total_quantity'] = float(allocation['total_quantity'])
                 allocations.append(allocation)
 
             return allocations, total_value
@@ -591,6 +596,7 @@ class DatabaseHandler:
             print(f"Warning: Failed to fetch daily contributions ({e})")
             return {}
 
+
     def execute_many(self, sql: str, args: list) -> None:
         """Execute multiple SQL statements (bulk insert/update)"""
         conn = self.engine.raw_connection()
@@ -603,3 +609,4 @@ class DatabaseHandler:
                 cursor.close()
         finally:
             conn.close()
+

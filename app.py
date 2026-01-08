@@ -277,6 +277,37 @@ def get_daily_assets():
         "contributions": contributions_map
     }
 
+@app.route('/api/daily-assets/update', methods=['POST'])
+def update_daily_asset():
+    data = request.json
+    date_str = data.get('date')
+    amount = data.get('amount')
+    currency = data.get('currency', 'USD')
+    dry_run = data.get('dry_run', False)
+    market = data.get('market', 'us')
+
+    if not date_str or amount is None:
+        return jsonify({"status": "error", "message": "Missing date or amount"}), 400
+
+    # Determine DB handler based on market
+    if market == 'kr':
+        handler = kr_db_handler
+    else:
+        handler = db_handler
+
+    try:
+        current_amount = float(amount)
+        # If currency is KRW but market is US (or vice-versa, though unlikely for this app), handle conversion?
+        # Current logic: The frontend sends the value in the currency of the view. 
+        # But daily_records in US DB are USD, KR DB are KRW.
+        # So we trust the frontend sends the correct unit for the selected market.
+        
+        result = handler.update_daily_total_value(date_str, current_amount, dry_run=dry_run)
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):
     value = request.form.get('value')

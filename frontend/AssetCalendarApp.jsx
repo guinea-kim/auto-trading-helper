@@ -211,32 +211,84 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         setIsModalOpen(true);
     };
 
-    const handleSaveInput = (e) => {
+    const handleSaveInput = async (e) => {
         e.preventDefault();
         if (!selectedDate) return;
 
         // 입력된 값을 숫자로 변환 (콤마 제거)
         const rawVal = parseInt(inputValue.toString().replace(/,/g, ''), 10);
-        const newData = { ...assetData };
 
         if (isNaN(rawVal)) {
-            delete newData[selectedDate];
-        } else {
-            // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산하여 저장
-            let usdToSave = rawVal;
-            // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산... 하지 않음. API가 KRW를 받는지 확인 필요.
-            // 하지만 이 앱은 Read-only 대시보드가 주 목적.
-            // 만약 저장을 지원한다면, KRW 모드일 땐 KRW 그대로 저장해야 함 (API가 문맥을 알기 때문)
-            // 기존 로직: usdToSave = Math.round(rawVal / EXCHANGE_RATE);
-            // 수정 로직: 그대로 저장 (API endpoint logic depends on market param)
-            if (currency === 'KRW') {
-                usdToSave = rawVal;
-            }
-            newData[selectedDate] = usdToSave;
+            alert("Please enter a valid number.");
+            return;
         }
 
-        saveAssetData(newData);
-        setIsModalOpen(false);
+        // Determine market based on currency
+        const market = currency === 'KRW' ? 'kr' : 'us';
+
+        try {
+            // 1. Dry Run Request
+            const response = await fetch('/api/daily-assets/update', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    date: selectedDate,
+                    amount: rawVal,
+                    currency: currency,
+                    market: market,
+                    dry_run: true
+                })
+            });
+
+            const result = await response.json();
+
+            if (result.status === 'error') {
+                alert(`Error: ${result.message}`);
+                return;
+            }
+
+            // 2. Confirmation Dialog
+            const confirmMsg = `
+[Confirm Update]
+Table: ${result.target_table}
+Account: ${result.target_account}
+ID: ${result.target_id}
+
+Current Total: ${formatMoney(result.current_value)}
+New Total: ${formatMoney(result.new_value)}
+Difference: ${formatMoney(result.diff)}
+
+Are you sure you want to update the database?`;
+
+            if (window.confirm(confirmMsg)) {
+                // 3. Execute Update
+                const finalResponse = await fetch('/api/daily-assets/update', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        date: selectedDate,
+                        amount: rawVal,
+                        currency: currency,
+                        market: market,
+                        dry_run: false
+                    })
+                });
+
+                const finalResult = await finalResponse.json();
+
+                if (finalResult.status === 'success') {
+                    // Refresh data
+                    fetchAssetData();
+                    setIsModalOpen(false);
+                } else {
+                    alert(`Update failed: ${finalResult.message}`);
+                }
+            }
+
+        } catch (error) {
+            console.error("Update error:", error);
+            alert("Failed to update daily asset.");
+        }
     };
     const closeModal = () => setIsModalOpen(false);
 

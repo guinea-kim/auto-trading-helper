@@ -1,7 +1,10 @@
+
 # Ignore tokens and secret config
 library/tokens/
 library/secret.py
 library/config.py
+.env
+
 
 # IDE/editor configs
 .idea/

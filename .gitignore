@@ -48,3 +48,8 @@ server-key.pem
 library/tokens/
 library/secret.py
 library/config.py
+
+# Puppeteer / Browser profiles
+chrome_profile_real/
+puppeteer_profile/
+temp_*.py

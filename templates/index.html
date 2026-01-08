@@ -129,6 +129,15 @@
         .chart-canvas {
             max-height: 400px;
         }
+
+        .sticky-sub-header {
+            position: sticky;
+            top: 41px;
+            z-index: 90;
+            background-color: #cff4fc !important;
+            /* table-info color */
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+        }
     </style>
 </head>
 
@@ -391,7 +400,7 @@
                 <thead class="table-light">
                     <tr>
                         <th>ID</th>
-                        <th>계정</th>
+                        <!-- Account Column Removed -->
                         {% if current_market == 'kr' %}
                         <th>종목코드</th>
                         <th>종목명</th>
@@ -414,9 +423,19 @@
                 </thead>
                 <tbody>
                     {% for rule in active_rules %}
+                    {% if loop.first or rule.account_id != loop.previtem.account_id %}
+                    <tr class="table-info">
+                        <td colspan="15" class="fw-bold text-start ps-4 sticky-sub-header">
+                            <i class="fas fa-user me-1"></i> {{ rule.user_id }}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-wallet me-1"></i> {{ rule.account_number }}
+                            <span class="text-muted ms-2 fw-normal">({{ rule.account_description }})</span>
+                        </td>
+                    </tr>
+                    {% endif %}
                     <tr>
                         <td>{{ rule.id }}</td>
-                        <td>{{ rule.account_id }} - {{ rule.account_description }}</td>
+                        <!-- Account TD Removed -->
                         <td>{{ rule.symbol }}</td>
                         {% if current_market == 'kr' %}
                         <td>{{ rule.stock_name }}</td>

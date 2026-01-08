@@ -138,6 +138,12 @@
             /* table-info color */
             box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
         }
+
+        /* This is important to keep the inactive rules visible */
+        tbody.collapse.show {
+            display: table-row-group !important;
+            visibility: visible !important;
+        }
     </style>
 </head>
 
@@ -421,11 +427,13 @@
                         <th>작업</th>
                     </tr>
                 </thead>
+
+                <!-- Active Rules -->
                 <tbody>
                     {% for rule in active_rules %}
                     {% if loop.first or rule.account_id != loop.previtem.account_id %}
                     <tr class="table-info">
-                        <td colspan="15" class="fw-bold text-start ps-4 sticky-sub-header">
+                        <td colspan="20" class="fw-bold text-start ps-4 sticky-sub-header">
                             <i class="fas fa-user me-1"></i> {{ rule.user_id }}
                             <span class="mx-2">|</span>
                             <i class="fas fa-wallet me-1"></i> {{ rule.account_number }}
@@ -541,136 +549,103 @@
                     </tr>
                     {% endfor %}
                 </tbody>
+
+                <!-- Inactive Rules Separator -->
+                <tbody class="border-top" style="border-top-width: 3px !important; border-top-color: #dee2e6;">
+                    <tr class="table-secondary clickable-row" data-bs-toggle="collapse"
+                        data-bs-target="#inactive-rules-body" style="cursor: pointer;">
+                        <td colspan="20" class="text-center fw-bold py-2 text-muted">
+                            <i class="fas fa-chevron-down me-2"></i> 비활성 규칙 조회 ({{ inactive_rules|length }}) <i
+                                class="fas fa-chevron-down ms-2"></i>
+                        </td>
+                    </tr>
+                </tbody>
+
+                <!-- Inactive Rules Body -->
+                <tbody id="inactive-rules-body" class="collapse text-muted">
+                    {% for rule in inactive_rules %}
+                    {% if loop.first or rule.account_id != loop.previtem.account_id %}
+                    <tr class="table-info">
+                        <td colspan="20" class="fw-bold text-start ps-4 sticky-sub-header">
+                            <i class="fas fa-user me-1"></i> {{ rule.user_id }}
+                            <span class="mx-2">|</span>
+                            <i class="fas fa-wallet me-1"></i> {{ rule.account_number }}
+                            <span class="text-muted ms-2 fw-normal">({{ rule.account_description }})</span>
+                        </td>
+                    </tr>
+                    {% endif %}
+                    <tr>
+                        <td>{{ rule.id }}</td>
+                        <!-- Account TD Removed -->
+                        <td>{{ rule.symbol }}</td>
+                        {% if current_market == 'kr' %}
+                        <td>{{ rule.stock_name }}</td>
+                        {% else %}
+                        {% endif %}
+                        <td>
+                            {{ rule.limit_value }}
+                            <span class="badge bg-light text-dark border">{{ rule.limit_type }}</span>
+                        </td>
+                        <td>{{ rule.target_amount }}</td>
+                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{%
+                            else %}{{
+                            rule.trade_action }}{% endif %}</td>
+                        <td>{{ rule.daily_money }}</td>
+                        <td>
+                            {% if rule.cash_only %}<i class="fas fa-check text-success"></i>{% endif %}
+                        </td>
+                        <td>
+                            <span
+                                class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% elif rule.status == 'PROCESSED' %}info{% else %}secondary{% endif %}">
+                                {{ rule.status }}
+                            </span>
+                        </td>
+                        <td>{{ rule.average_price }}</td>
+                        <td>{{ rule.current_holding }}</td>
+                        <td>{{ rule.last_price }}</td>
+                        <td>
+                            {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
+                            {% set profit_percent = ((rule.last_price - rule.average_price) /
+                            rule.average_price *
+                            100)|float %}
+                            <span
+                                class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                {{ "{:.2f}%".format(profit_percent) }}
+                            </span>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if rule.last_price and rule.high_price and rule.high_price > 0 %}
+                            {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price
+                            * 100)|float %}
+                            <span class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
+                                {{ "{:.2f}%".format(drop_percent) }}
+                            </span>
+                            {% else %}
+                            N/A
+                            {% endif %}
+                        </td>
+                        <td>
+                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post"
+                                class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
+                                <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
+                                    <option value="">상태변경</option>
+                                    <option value="ACTIVE">ACTIVE</option>
+                                    <option value="PROCESSED">PROCESSED</option>
+                                    <option value="COMPLETED">COMPLETED</option>
+                                    <option value="CANCELLED">CANCELLED</option>
+                                </select>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
             </table>
 
-            <!-- Inactive Rules (Collapsed) -->
-            <div class="accordion mt-2 mb-5" id="inactiveRulesAccordion">
-                <div class="accordion-item">
-                    <h2 class="accordion-header" id="headingInactive">
-                        <button class="accordion-button collapsed bg-light text-secondary" type="button"
-                            data-bs-toggle="collapse" data-bs-target="#collapseInactive" aria-expanded="false"
-                            aria-controls="collapseInactive">
-                            <i class="fas fa-history me-2"></i> 비활성 (완료/취소) 규칙 ({{ inactive_rules|length }})
-                        </button>
-                    </h2>
-                    <div id="collapseInactive" class="accordion-collapse collapse" aria-labelledby="headingInactive"
-                        data-bs-parent="#inactiveRulesAccordion" style="visibility: visible !important;">
-                        <div class="accordion-body p-0">
-                            <table class="table table-striped table-hover mb-0">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th>ID</th>
-                                        <!-- Account Column Removed -->
-                                        {% if current_market == 'kr' %}
-                                        <th>종목코드</th>
-                                        <th>종목명</th>
-                                        {% else %}
-                                        <th>종목</th>
-                                        {% endif %}
-                                        <th>한계값</th>
-                                        <th>목표 수량</th>
-                                        <th>투자 액션</th>
-                                        <th>일일 투자금</th>
-                                        <th>현금만</th>
-                                        <th>상태</th>
-                                        <th>평균 매수가</th>
-                                        <th>보유 수량</th>
-                                        <th>종가</th>
-                                        <th>수익률</th>
-                                        <th>고점 대비</th>
-                                        <th>작업</th>
-                                    </tr>
-                                </thead>
-                                <tbody class="text-muted">
-                                    {% for rule in inactive_rules %}
-                                    {% if loop.first or rule.account_id != loop.previtem.account_id %}
-                                    <tr class="table-info">
-                                        <td colspan="15" class="fw-bold text-start ps-4 sticky-sub-header">
-                                            <i class="fas fa-user me-1"></i> {{ rule.user_id }}
-                                            <span class="mx-2">|</span>
-                                            <i class="fas fa-wallet me-1"></i> {{ rule.account_number }}
-                                            <span class="text-muted ms-2 fw-normal">({{ rule.account_description
-                                                }})</span>
-                                        </td>
-                                    </tr>
-                                    {% endif %}
-                                    <tr>
-                                        <td>{{ rule.id }}</td>
-                                        <!-- Account TD Removed -->
-                                        <td>{{ rule.symbol }}</td>
-                                        {% if current_market == 'kr' %}
-                                        <td>{{ rule.stock_name }}</td>
-                                        {% else %}
-                                        {% endif %}
-                                        <td>
-                                            {{ rule.limit_value }}
-                                            <span class="badge bg-light text-dark border">{{ rule.limit_type }}</span>
-                                        </td>
-                                        <td>{{ rule.target_amount }}</td>
-                                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{%
-                                            else %}{{
-                                            rule.trade_action }}{% endif %}</td>
-                                        <td>{{ rule.daily_money }}</td>
-                                        <td>
-                                            {% if rule.cash_only %}<i class="fas fa-check text-success"></i>{% endif %}
-                                        </td>
-                                        <td>
-                                            <span
-                                                class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% elif rule.status == 'PROCESSED' %}info{% else %}secondary{% endif %}">
-                                                {{ rule.status }}
-                                            </span>
-                                        </td>
-                                        <td>{{ rule.average_price }}</td>
-                                        <td>{{ rule.current_holding }}</td>
-                                        <td>{{ rule.last_price }}</td>
-                                        <td>
-                                            {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
-                                            {% set profit_percent = ((rule.last_price - rule.average_price) /
-                                            rule.average_price *
-                                            100)|float %}
-                                            <span
-                                                class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
-                                                {{ "{:.2f}%".format(profit_percent) }}
-                                            </span>
-                                            {% else %}
-                                            N/A
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            {% if rule.last_price and rule.high_price and rule.high_price > 0 %}
-                                            {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price
-                                            * 100)|float %}
-                                            <span
-                                                class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
-                                                {{ "{:.2f}%".format(drop_percent) }}
-                                            </span>
-                                            {% else %}
-                                            N/A
-                                            {% endif %}
-                                        </td>
-                                        <td>
-                                            <!-- Inactive items also need to be editable to Reactivate -->
-                                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}"
-                                                method="post" class="d-inline">
-                                                <input type="hidden" name="market" value="{{ current_market }}">
-                                                <select name="status" class="form-select form-select-sm"
-                                                    onchange="this.form.submit()">
-                                                    <option value="">상태변경</option>
-                                                    <option value="ACTIVE">ACTIVE</option>
-                                                    <option value="PROCESSED">PROCESSED</option>
-                                                    <option value="COMPLETED">COMPLETED</option>
-                                                    <option value="CANCELLED">CANCELLED</option>
-                                                </select>
-                                            </form>
-                                        </td>
-                                    </tr>
-                                    {% endfor %}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </div>
+
         </div>
         <div class="row">
             <!-- Account Form -->
@@ -960,13 +935,62 @@
                         });
                 });
             });
-        });
+
+            // Inactive Rules State Persistence
+            function restoreInactiveState() {
+                const el = document.getElementById('inactive-rules-body');
+                const triggers = document.querySelectorAll('[data-bs-target="#inactive-rules-body"]');
+                const isOpen = localStorage.getItem('inactiveRulesOpen') === 'true';
+
+                if (el) {
+                    if (isOpen) {
+                        el.classList.add('show');
+                        triggers.forEach(t => {
+                            t.classList.remove('collapsed');
+                            t.setAttribute('aria-expanded', 'true');
+                        });
+                    } else {
+                        el.classList.remove('show');
+                        triggers.forEach(t => {
+                            t.classList.add('collapsed');
+                            t.setAttribute('aria-expanded', 'false');
+                        });
+                    }
+                }
+            }
+
+            // Initial Check
+            restoreInactiveState();
+
+            // Toggle Listener (Delegated)
+            document.addEventListener('click', function (e) {
+                const target = e.target.closest('[data-bs-target="#inactive-rules-body"]');
+                if (target) {
+                    setTimeout(() => {
+                        const el = document.getElementById('inactive-rules-body');
+                        if (el) {
+                            const isOpen = el.classList.contains('show');
+                            localStorage.setItem('inactiveRulesOpen', isOpen);
+                        }
+                    }, 350); // Delay for Bootstrap transition
+                }
+            });
+
+            // Observer for AJAX updates
+            const tableContainer = document.querySelector('.table-container');
+            if (tableContainer) {
+                const observer = new MutationObserver(function (mutations) {
+                    restoreInactiveState();
+                });
+                observer.observe(tableContainer, { childList: true, subtree: true });
+            }
     </script>
     <!-- Chart.js Script -->
     {% if daily_total_values %}
     <script>
-        // 차트 데이터 준비
-        const dailyData = {{ daily_total_values | tojson }};
+            // 차트 데이터 준비
+            const dailyData = {{ daily_total_values | tojson
+        }};
 
         const labels = dailyData.map(item => item.record_date);
         const values = dailyData.map(item => parseFloat(item.total_value));

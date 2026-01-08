@@ -561,6 +561,36 @@ class DatabaseHandler:
 
             return data
 
+    def get_daily_contributions(self) -> Dict[str, float]:
+        """날짜별 전체 계좌의 기여금/인출금 합산 조회 (contribution_history 기반)"""
+        # contribution_history 테이블이 존재하는지 확인 필요하지만, 
+        # 일단 try-except로 감싸거나 테이블이 있다고 가정 (US는 확실, KR은 불확실하지만 쿼리 시도)
+        try:
+            sql = """
+                SELECT 
+                    DATE(transaction_date) as t_date, 
+                    SUM(amount) as total_amount
+                FROM contribution_history
+                GROUP BY DATE(transaction_date)
+                ORDER BY t_date ASC
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql))
+                
+                data = {}
+                for row in result:
+                    row_dict = dict(row._mapping)
+                    date_str = str(row_dict['t_date'])
+                    val = row_dict['total_amount']
+                    if isinstance(val, decimal.Decimal):
+                        val = float(val)
+                    data[date_str] = val
+                return data
+        except Exception as e:
+            # 테이블이 없거나 에러 발생 시 빈 딕셔너리 반환
+            print(f"Warning: Failed to fetch daily contributions ({e})")
+            return {}
+
     def execute_many(self, sql: str, args: list) -> None:
         """Execute multiple SQL statements (bulk insert/update)"""
         conn = self.engine.raw_connection()

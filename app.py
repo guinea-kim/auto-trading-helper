@@ -264,12 +264,18 @@ def get_daily_assets():
     daily_data_list = current_db_handler.get_daily_total_values(max_points=10000)
     
     # Transform list to dictionary: { "YYYY-MM-DD": value }
-    asset_data = {}
+    assets_map = {}
     for item in daily_data_list:
         # mysql_helper returns date string in 'YYYY-MM-DD' format
-        asset_data[item['record_date']] = item['total_value']
-        
-    return asset_data
+        assets_map[item['record_date']] = item['total_value']
+    
+    # Fetch contribution data
+    contributions_map = current_db_handler.get_daily_contributions()
+
+    return {
+        "assets": assets_map,
+        "contributions": contributions_map
+    }
 
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):

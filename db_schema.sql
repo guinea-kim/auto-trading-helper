@@ -53,6 +53,7 @@ CREATE TABLE helper_db.daily_records (
     record_date DATE,
     account_id VARCHAR(20),
     symbol VARCHAR(10),
+    quantity DECIMAL(15, 6) DEFAULT 0,
     amount DECIMAL(18, 2),
     UNIQUE KEY (record_date, account_id, symbol)
 );
@@ -124,6 +125,7 @@ CREATE TABLE helper_kr_db.daily_records (
     record_date DATE,
     account_id VARCHAR(20),
     symbol VARCHAR(255),
+    quantity DECIMAL(15, 6) DEFAULT 0,
     amount DECIMAL(18, 2),
     UNIQUE KEY (record_date, account_id, symbol)
 );

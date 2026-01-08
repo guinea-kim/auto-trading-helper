@@ -38,12 +38,12 @@
 
         .flash-messages {
             margin-bottom: 20px;
-            position: sticky;
-            top: 0;
-            z-index: 1000;
-            background-color: white;
-            padding: 10px 0;
-            border-bottom: 1px solid #dee2e6;
+            /* position: sticky; */
+            /* top: 0; */
+            /* z-index: 1000; */
+            /* background-color: white; */
+            /* padding: 10px 0; */
+            /* border-bottom: 1px solid #dee2e6; */
         }
 
         .editable-field {
@@ -73,6 +73,12 @@
             /* 모든 th에 적용 */
             vertical-align: middle;
             /* 세로 정렬을 중앙으로 맞춤 */
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            background-color: #f8f9fa !important;
+            /* Bootstrap table-light color */
+            box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
         }
 
         td {
@@ -131,11 +137,16 @@
         <h1 class="text-center mb-4">자동 거래 관리 시스템</h1>
 
         <!-- Flash Messages -->
-        <div class="flash-messages">
-            {% for category, message in get_flashed_messages(with_categories=true) %}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+        <div class="flash-messages"
+            style="position: sticky; top: 0; z-index: 1000; background-color: white; padding: 10px 0; border-bottom: 1px solid #dee2e6;">
+            {% for category, message in messages %}
             <div class="alert alert-{{ category }}">{{ message }}</div>
             {% endfor %}
         </div>
+        {% endif %}
+        {% endwith %}
         <div class="market-selector mb-4">
             <ul class="nav nav-tabs">
                 <li class="nav-item">

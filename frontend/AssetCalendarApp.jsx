@@ -35,13 +35,13 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 const sortedKeys = Object.keys(rawData).sort();
                 if (sortedKeys.length > 0) {
                     const startDate = new Date(sortedKeys[0]);
-                    const today = new Date();
-                    // 오늘날짜까지만 채움 (미래 날짜 제외)
+                    // 오늘날짜가 아닌, 데이터의 마지막 날짜까지만 채움 (미래 날짜 제외)
+                    const lastDataDate = new Date(sortedKeys[sortedKeys.length - 1]);
 
                     let currentDateIterator = new Date(startDate);
                     let lastValue = rawData[sortedKeys[0]];
 
-                    while (currentDateIterator <= today) {
+                    while (currentDateIterator <= lastDataDate) {
                         const dateKey = currentDateIterator.toISOString().split('T')[0];
 
                         if (processedData[dateKey] !== undefined) {
@@ -84,7 +84,8 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         let symbol = '$';
 
         if (currency === 'KRW') {
-            val = usdValue * EXCHANGE_RATE;
+            // API data is ALREADY in KRW (raw values), so do NOT multiply by EXCHANGE_RATE
+            val = usdValue;
             symbol = '₩';
         }
 
@@ -99,7 +100,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         let val = usdValue;
 
         if (currency === 'KRW') {
-            val = usdValue * EXCHANGE_RATE;
+            val = usdValue; // Previously: usdValue * EXCHANGE_RATE; Now: Raw KRW value
             const absVal = Math.abs(val);
             const sign = val < 0 ? '-' : '';
 
@@ -153,10 +154,8 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     };
 
     const getPreviousDateKey = (dateKey) => {
-        const date = new Date(dateKey);
-        // Note: new Date("YYYY-MM-DD") is UTC.
-        // But since we want to subtract 1 day, dealing with it in standard Date object works fine
-        // as long as we output using the same formatter.
+        const [year, month, day] = dateKey.split('-').map(Number);
+        const date = new Date(year, month - 1, day);
         date.setDate(date.getDate() - 1);
         return formatDateKey(date);
     };
@@ -196,7 +195,8 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         // 입력창 초기값 설정: 저장된 USD 값을 현재 통화에 맞춰 변환해서 보여줌
         const usdVal = assetData[dateStr];
         if (usdVal !== undefined) {
-            const displayVal = currency === 'KRW' ? Math.round(usdVal * EXCHANGE_RATE) : usdVal;
+            // If KRW, the data is already KRW, so no conversion needed for display
+            const displayVal = currency === 'KRW' ? usdVal : usdVal;
             setInputValue(displayVal);
         } else {
             setInputValue('');
@@ -217,8 +217,13 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         } else {
             // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산하여 저장
             let usdToSave = rawVal;
+            // 저장 시: 현재 입력된 값이 KRW라면 USD로 역환산... 하지 않음. API가 KRW를 받는지 확인 필요.
+            // 하지만 이 앱은 Read-only 대시보드가 주 목적.
+            // 만약 저장을 지원한다면, KRW 모드일 땐 KRW 그대로 저장해야 함 (API가 문맥을 알기 때문)
+            // 기존 로직: usdToSave = Math.round(rawVal / EXCHANGE_RATE);
+            // 수정 로직: 그대로 저장 (API endpoint logic depends on market param)
             if (currency === 'KRW') {
-                usdToSave = Math.round(rawVal / EXCHANGE_RATE);
+                usdToSave = rawVal;
             }
             newData[selectedDate] = usdToSave;
         }

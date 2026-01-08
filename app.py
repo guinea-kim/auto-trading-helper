@@ -53,12 +53,23 @@ def index():
     profit_percent = (total_profit / total_contribution * 100) if total_contribution > 0 else 0
     is_kr_market = (market == 'kr')
 
+    # trading_rules 분리 (Active vs Inactive)
+    active_rules = []
+    inactive_rules = []
+    
+    for rule in trading_rules:
+        if rule.get('status') in ['ACTIVE', 'PROCESSED']:
+            active_rules.append(rule)
+        else:
+            inactive_rules.append(rule)
+
     # 날짜별 총 자산 데이터 가져오기 (스마트 샘플링, 최대 50개 포인트)
     daily_total_values = current_db_handler.get_daily_total_values(50)
 
     return render_template('index.html',
                            accounts=accounts,
-                           trading_rules=trading_rules,
+                           active_rules=active_rules,
+                           inactive_rules=inactive_rules,
                            current_market=market,
                            consolidated_allocations=consolidated_allocations,
                            total_value=total_value,

@@ -248,9 +248,10 @@
                         </td>
                         <td>
                             {% if allocation.total_quantity %}
-                                {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity % 1 == 0 else "{:,.4f}".format(allocation.total_quantity|float) }}
+                            {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity % 1 == 0
+                            else "{:,.4f}".format(allocation.total_quantity|float) }}
                             {% else %}
-                                -
+                            -
                             {% endif %}
                         </td>
                         <td>{{ "${:,.2f}".format(allocation.total_value|float) }}</td>
@@ -368,10 +369,15 @@
         </div>
 
         <!-- Trading Rules Table -->
+        <!-- Trading Rules Table -->
         <div class="table-container">
             <h3>거래 규칙 목록</h3>
-            <table class="table table-striped">
-                <thead>
+
+            <!-- Active Rules -->
+            <h5 class="mt-4 mb-3 text-success"><i class="fas fa-check-circle"></i> 활성 규칙 ({{ active_rules|length }})
+            </h5>
+            <table class="table table-striped table-hover shadow-sm rounded">
+                <thead class="table-light">
                     <tr>
                         <th>ID</th>
                         <th>계정</th>
@@ -396,7 +402,7 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% for rule in trading_rules %}
+                    {% for rule in active_rules %}
                     <tr>
                         <td>{{ rule.id }}</td>
                         <td>{{ rule.account_id }} - {{ rule.account_description }}</td>
@@ -506,6 +512,124 @@
                     {% endfor %}
                 </tbody>
             </table>
+
+            <!-- Inactive Rules (Collapsed) -->
+            <div class="accordion mt-2 mb-5" id="inactiveRulesAccordion">
+                <div class="accordion-item">
+                    <h2 class="accordion-header" id="headingInactive">
+                        <button class="accordion-button collapsed bg-light text-secondary" type="button"
+                            data-bs-toggle="collapse" data-bs-target="#collapseInactive" aria-expanded="false"
+                            aria-controls="collapseInactive">
+                            <i class="fas fa-history me-2"></i> 비활성 (완료/취소) 규칙 ({{ inactive_rules|length }})
+                        </button>
+                    </h2>
+                    <div id="collapseInactive" class="accordion-collapse collapse" aria-labelledby="headingInactive"
+                        data-bs-parent="#inactiveRulesAccordion" style="visibility: visible !important;">
+                        <div class="accordion-body p-0">
+                            <table class="table table-striped table-hover mb-0">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th>ID</th>
+                                        <th>계정</th>
+                                        {% if current_market == 'kr' %}
+                                        <th>종목코드</th>
+                                        <th>종목명</th>
+                                        {% else %}
+                                        <th>종목</th>
+                                        {% endif %}
+                                        <th>한계값</th>
+                                        <th>목표 수량</th>
+                                        <th>투자 액션</th>
+                                        <th>일일 투자금</th>
+                                        <th>현금만</th>
+                                        <th>상태</th>
+                                        <th>평균 매수가</th>
+                                        <th>보유 수량</th>
+                                        <th>종가</th>
+                                        <th>수익률</th>
+                                        <th>고점 대비</th>
+                                        <th>작업</th>
+                                    </tr>
+                                </thead>
+                                <tbody class="text-muted">
+                                    {% for rule in inactive_rules %}
+                                    <tr>
+                                        <td>{{ rule.id }}</td>
+                                        <td>{{ rule.account_id }} - {{ rule.account_description }}</td>
+                                        <td>{{ rule.symbol }}</td>
+                                        {% if current_market == 'kr' %}
+                                        <td>{{ rule.stock_name }}</td>
+                                        {% else %}
+                                        {% endif %}
+                                        <td>
+                                            {{ rule.limit_value }}
+                                            <span class="badge bg-light text-dark border">{{ rule.limit_type }}</span>
+                                        </td>
+                                        <td>{{ rule.target_amount }}</td>
+                                        <td>{% if rule.trade_action == 0 %}SELL{% elif rule.trade_action == 1 %}BUY{%
+                                            else %}{{
+                                            rule.trade_action }}{% endif %}</td>
+                                        <td>{{ rule.daily_money }}</td>
+                                        <td>
+                                            {% if rule.cash_only %}<i class="fas fa-check text-success"></i>{% endif %}
+                                        </td>
+                                        <td>
+                                            <span
+                                                class="badge bg-{% if rule.status == 'ACTIVE' %}success{% elif rule.status == 'COMPLETED' %}primary{% elif rule.status == 'PROCESSED' %}info{% else %}secondary{% endif %}">
+                                                {{ rule.status }}
+                                            </span>
+                                        </td>
+                                        <td>{{ rule.average_price }}</td>
+                                        <td>{{ rule.current_holding }}</td>
+                                        <td>{{ rule.last_price }}</td>
+                                        <td>
+                                            {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
+                                            {% set profit_percent = ((rule.last_price - rule.average_price) /
+                                            rule.average_price *
+                                            100)|float %}
+                                            <span
+                                                class="{% if profit_percent >= 0 %}positive-profit{% else %}negative-profit{% endif %}">
+                                                {{ "{:.2f}%".format(profit_percent) }}
+                                            </span>
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            {% if rule.last_price and rule.high_price and rule.high_price > 0 %}
+                                            {% set drop_percent = ((rule.high_price - rule.last_price) / rule.high_price
+                                            * 100)|float %}
+                                            <span
+                                                class="{% if drop_percent > 0 %}negative-profit{% else %}positive-profit{% endif %}">
+                                                {{ "{:.2f}%".format(drop_percent) }}
+                                            </span>
+                                            {% else %}
+                                            N/A
+                                            {% endif %}
+                                        </td>
+                                        <td>
+                                            <!-- Inactive items also need to be editable to Reactivate -->
+                                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}"
+                                                method="post" class="d-inline">
+                                                <input type="hidden" name="market" value="{{ current_market }}">
+                                                <select name="status" class="form-select form-select-sm"
+                                                    onchange="this.form.submit()">
+                                                    <option value="">상태변경</option>
+                                                    <option value="ACTIVE">ACTIVE</option>
+                                                    <option value="PROCESSED">PROCESSED</option>
+                                                    <option value="COMPLETED">COMPLETED</option>
+                                                    <option value="CANCELLED">CANCELLED</option>
+                                                </select>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
         <div class="row">
             <!-- Account Form -->

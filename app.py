@@ -7,7 +7,6 @@ app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", secret.app_secret)
 
 # DB Handler 인스턴스 생성
-# DB Handler 인스턴스 생성
 try:
     us_db_handler = DatabaseHandler(secret.db_name)
     kr_db_handler = DatabaseHandler(secret.db_name_kr)
@@ -334,35 +333,8 @@ def update_daily_asset():
         
         if record_id:
              # Case 1: Updating specific record (Account Level)
-             # Fetch current record for diff calculation
-             # We need a new method or reuse get_daily_records_by_date logic but filtered by ID?
-             # Or just use the update method logic.
-             # Ideally, mysql_helper should handle this "Plan" generation for single record too.
-             # Let's add a robust internal method in mysql_helper or do it here?
-             # Better to keep logic in mysql_helper. Let's assume we update update_daily_total_value to handle record_id OR move logic.
-             
-             # Actually, let's implement a specific method in mysql_helper for single record update with plan
-             # But for now, since I can't easily edit mysql_helper again in this turn without delay, 
-             # I will assume I can implement the logic here using available methods? 
-             # No, better to add `update_daily_record_with_plan` in mysql_helper.
-             # Wait, I already added `update_daily_record` (simple update).
-             # I need to fetch the record first to calculate diff.
-             
-             # Let's implement logic here:
-             # 1. Fetch record by ID (need query? `get_daily_records_by_date` fetches all for date...)
-             # Let's use `get_daily_records_breakdown` and filter in python (not efficient but works for small N)
-             # OR just fetch the row from DB.
-             # Since I don't have `get_record_by_id`, I'll rely on the frontend passing the correct OLD value? 
-             # No, security risk and race condition. 
-             # I should query the DB.
-             
-             # Re-reading mysql_helper.py... 
-             # I added `update_daily_record(record_id, amount)`.
-             # I DO NOT have `get_record_by_id`.
-             
-             # I will use `get_daily_records_breakdown(date_str)` and find the matching ID.
              records = handler.get_daily_records_breakdown(date_str)
-             target_record = next((r for r in records if r['id'] == record_id), None)
+             target_record = next((r for r in records if str(r['id']) == str(record_id)), None)
              
              if not target_record:
                  return jsonify({"status": "error", "message": "Record not found"}), 404
@@ -372,9 +344,10 @@ def update_daily_asset():
              
              plan = {
                 "status": "success",
+                "type": "update",
                 "target_table": "daily_records",
                 "target_id": record_id,
-                "target_account": target_record['account_id'], # breakdown includes account_id
+                "target_account": target_record['account_id'],
                 "current_value": original_amount,
                 "new_value": current_amount,
                 "diff": diff,
@@ -387,10 +360,30 @@ def update_daily_asset():
                  
              return jsonify(plan)
              
+        elif data.get('account_id'):
+            # Case 2: Create New Record (Missing ID but Account ID provided)
+            # Check if record already exists for this account/date to prevent dups? 
+            # (Assuming frontend handles display, but safe to check? For now trust frontend context)
+            account_id = data.get('account_id')
+            
+            plan = {
+                "status": "success",
+                "type": "insert",
+                "target_table": "daily_records",
+                "target_account": account_id,
+                "new_value": current_amount,
+                "dry_run": dry_run
+            }
+            
+            if not dry_run:
+                new_id = handler.upsert_daily_record(date_str, account_id, current_amount)
+                plan["new_id"] = new_id
+                plan["executed"] = True
+                
+            return jsonify(plan)
+            
         else:
-            # Case 2: Updating Total (Legacy / Global) - Distributes to first account
-            result = handler.update_daily_total_value(date_str, current_amount, dry_run=dry_run)
-            return jsonify(result)
+            return jsonify({"status": "error", "message": "Missing record_id or account_id"}), 400
             
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500

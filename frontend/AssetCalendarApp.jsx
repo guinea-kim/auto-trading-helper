@@ -11,7 +11,6 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     const [assetData, setAssetData] = useState({}); // { "YYYY-MM-DD": value (ALWAYS IN USD) }
     const [contributionData, setContributionData] = useState({}); // { "YYYY-MM-DD": value } (Daily Transaction Sum)
     const [selectedDate, setSelectedDate] = useState(null);
-    // Removed old inputValue state
     const [breakdownData, setBreakdownData] = useState([]);
     const [isLoadingBreakdown, setIsLoadingBreakdown] = useState(false);
     const [editValues, setEditValues] = useState({}); // { record_id: string_value }
@@ -253,7 +252,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 // Initialize edit values
                 const initialEdits = {};
                 currentData.forEach(item => {
-                    initialEdits[item.id] = item.amount;
+                    initialEdits[item.account_id] = item.amount;
                 });
                 setEditValues(initialEdits);
             } else {
@@ -267,18 +266,18 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         }
     };
 
-    const handleInputChange = (recordId, value) => {
+    const handleInputChange = (accountId, value) => {
         const rawVal = value.replace(/,/g, '');
         if (!isNaN(rawVal)) {
             setEditValues(prev => ({
                 ...prev,
-                [recordId]: rawVal
+                [accountId]: rawVal
             }));
         }
     };
 
-    const handleUpdateAccount = async (recordId, currentAmount) => {
-        const newValStr = editValues[recordId];
+    const handleUpdateAccount = async (recordId, accountId, currentAmount) => {
+        const newValStr = editValues[accountId];
         if (newValStr === undefined || newValStr === '') return;
 
         const rawVal = parseFloat(newValStr.toString().replace(/,/g, ''));
@@ -299,6 +298,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                     date: selectedDate,
                     amount: rawVal,
                     record_id: recordId,
+                    account_id: accountId,
                     currency: currency,
                     market: market,
                     dry_run: true
@@ -331,6 +331,7 @@ Are you sure you want to update the database?`;
                         date: selectedDate,
                         amount: rawVal,
                         record_id: recordId,
+                        account_id: accountId,
                         currency: currency,
                         market: market,
                         dry_run: false
@@ -756,7 +757,7 @@ Are you sure you want to update the database?`;
                                                 </div>
 
                                                 {breakdownData.map((item) => (
-                                                    <div key={item.id} className="grid grid-cols-[1fr_120px_200px_120px] gap-2 px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors items-center h-12">
+                                                    <div key={item.account_id} className="grid grid-cols-[1fr_120px_200px_120px] gap-2 px-3 py-2 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors items-center h-12">
                                                         <div className="min-w-0 flex flex-col justify-center pl-1">
                                                             <span className="text-[10px] text-gray-500 font-medium truncate tracking-wide mb-0.5" title={item.user_id}>
                                                                 {item.user_id}
@@ -780,13 +781,13 @@ Are you sure you want to update the database?`;
                                                                     type="text"
                                                                     className="w-full text-right border-none p-0 focus:ring-0 text-sm font-bold tabular-nums text-gray-900 bg-transparent outline-none h-full min-w-0"
                                                                     placeholder="0"
-                                                                    value={editValues[item.id] !== undefined ? parseInt(editValues[item.id]).toLocaleString() : item.amount.toLocaleString()}
-                                                                    onChange={(e) => handleInputChange(item.id, e.target.value)}
+                                                                    value={editValues[item.account_id] !== undefined ? parseInt(editValues[item.account_id]).toLocaleString() : item.amount.toLocaleString()}
+                                                                    onChange={(e) => handleInputChange(item.account_id, e.target.value)}
                                                                 />
                                                             </div>
                                                             <div className="h-4 w-px bg-gray-200 mx-1 shrink-0"></div>
                                                             <button
-                                                                onClick={() => handleUpdateAccount(item.id, item.amount)}
+                                                                onClick={() => handleUpdateAccount(item.id, item.account_id, item.amount)}
                                                                 className="text-gray-400 hover:text-blue-600 transition-colors p-0.5 shrink-0"
                                                                 title="Save"
                                                             >

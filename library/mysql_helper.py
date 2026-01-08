@@ -616,15 +616,21 @@ class DatabaseHandler:
 
     def get_daily_records_breakdown(self, date_str: str) -> list:
         """
-        특정 날짜의 daily_records를 계좌 정보와 함께 조회 (symbol='total'만)
+        특정 날짜의 daily_records를 계좌 정보와 함께 조회 (symbol='total'만).
+        데이터가 없는 계좌도 포함하여 반환 (LEFT JOIN).
         """
         try:
             sql = """
-                SELECT dr.id, dr.record_date, dr.account_id, dr.symbol, dr.amount, a.description, a.user_id
-                FROM daily_records dr
-                LEFT JOIN accounts a ON dr.account_id = a.id
-                WHERE dr.record_date = :date_str AND dr.symbol = 'total'
-                ORDER BY dr.account_id
+                SELECT dr.id, :date_str as record_date, a.id as account_id, 
+                       COALESCE(dr.symbol, 'total') as symbol, 
+                       COALESCE(dr.amount, 0) as amount, 
+                       a.description, a.user_id
+                FROM accounts a
+                LEFT JOIN daily_records dr 
+                    ON a.id = dr.account_id 
+                    AND dr.record_date = :date_str 
+                    AND dr.symbol = 'total'
+                ORDER BY a.id
             """
             with self.engine.connect() as conn:
                 result = conn.execute(text(sql), {"date_str": date_str})
@@ -684,43 +690,28 @@ class DatabaseHandler:
             print(f"Error updating daily record {record_id}: {e}")
             raise
 
-    def update_daily_total_value(self, date_str: str, new_total_value: float, dry_run: bool = False) -> dict:
+    def upsert_daily_record(self, date_str: str, account_id: str, amount: float, symbol: str = 'total') -> int:
         """
-        해당 날짜의 총 자산 가치를 업데이트.
-        여러 계좌가 있을 경우, 첫 번째 계좌의 total 값을 조정하여 전체 합을 맞춤.
-        
-        Returns:
-            dict: 업데이트 계획 또는 결과 정보
+        daily_record 추가 또는 업데이트 (Upsert)
         """
-        records = self.get_daily_records_by_date(date_str, 'total')
-        
-        if not records:
-            return {"status": "error", "message": "No records found for this date"}
-            
-        current_total = sum(float(r['amount']) for r in records)
-        diff = new_total_value - current_total
-        
-        # 첫 번째 기록에 차액 반영
-        target_record = records[0]
-        original_amount = float(target_record['amount'])
-        new_amount = original_amount + diff
-        
-        plan = {
-            "status": "success",
-            "target_table": "daily_records",
-            "target_id": target_record['id'],
-            "target_account": target_record['account_id'],
-            "current_value": original_amount,
-            "new_value": new_amount,
-            "diff": diff,
-            "dry_run": dry_run
-        }
-        
-        if not dry_run:
-            self.update_daily_record(target_record['id'], new_amount)
-            plan["executed"] = True
-            
-        return plan
+        try:
+            sql = """
+                INSERT INTO daily_records (record_date, account_id, symbol, amount)
+                VALUES (:date_str, :account_id, :symbol, :amount)
+                ON DUPLICATE KEY UPDATE amount = :amount
+            """
+            with self.engine.begin() as conn:
+                result = conn.execute(text(sql), {
+                    "date_str": date_str, 
+                    "account_id": account_id, 
+                    "symbol": symbol, 
+                    "amount": amount
+                })
+                # lastrowid might be 0 for updates in some drivers, but good enough for confirmation
+                return result.lastrowid 
+        except Exception as e:
+            print(f"Error upserting daily record: {e}")
+            raise
 
     def execute_many(self, sql: str, args: list) -> None:
         """Execute multiple SQL statements (bulk insert/update)"""

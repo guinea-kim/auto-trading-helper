@@ -9,6 +9,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
     const [currency, setCurrency] = useState(initialCurrency); // 'USD' or 'KRW'
     const [currentDate, setCurrentDate] = useState(new Date());
     const [assetData, setAssetData] = useState({}); // { "YYYY-MM-DD": value (ALWAYS IN USD) }
+    const [contributionData, setContributionData] = useState({}); // { "YYYY-MM-DD": value } (Daily Transaction Sum)
     const [selectedDate, setSelectedDate] = useState(null);
     const [inputValue, setInputValue] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -25,21 +26,26 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 if (!response.ok) {
                     throw new Error('Network response was not ok');
                 }
-                const rawData = await response.json();
+                const jsonResponse = await response.json();
+
+                // Handle new API structure { assets: ..., contributions: ... }
+                // Fallback for older API or single-object response
+                const rawAssets = jsonResponse.assets || jsonResponse;
+                const rawContributions = jsonResponse.contributions || {};
 
                 // --- 데이터 전처리 (Gap Filling) ---
-                const processedData = { ...rawData };
+                const processedData = { ...rawAssets };
                 const filledIndices = new Set();
 
                 // 날짜 정렬 (오름차순)
-                const sortedKeys = Object.keys(rawData).sort();
+                const sortedKeys = Object.keys(rawAssets).sort();
                 if (sortedKeys.length > 0) {
                     const startDate = new Date(sortedKeys[0]);
                     // 오늘날짜가 아닌, 데이터의 마지막 날짜까지만 채움 (미래 날짜 제외)
                     const lastDataDate = new Date(sortedKeys[sortedKeys.length - 1]);
 
                     let currentDateIterator = new Date(startDate);
-                    let lastValue = rawData[sortedKeys[0]];
+                    let lastValue = rawAssets[sortedKeys[0]];
 
                     while (currentDateIterator <= lastDataDate) {
                         const dateKey = currentDateIterator.toISOString().split('T')[0];
@@ -57,6 +63,7 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                 }
 
                 setAssetData(processedData);
+                setContributionData(rawContributions);
                 setFilledDates(filledIndices);
                 setIsMockData(false);
             } catch (error) {
@@ -298,6 +305,16 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
                             {date.getMonth() + 1}/{date.getDate()}
                         </span>
                     </div>
+
+                    {/* Bottom Left: Daily Contribution Tag (Yellow) */}
+                    {contributionData[key] && contributionData[key] !== 0 && (
+                        <div className="absolute bottom-0.5 left-1 md:bottom-1 md:left-2 z-10 flex">
+                            <span className="bg-yellow-100 text-yellow-800 text-[8px] md:text-[9px] font-bold px-1 py-0.5 rounded shadow-sm border border-yellow-200 block leading-none tabular-nums tracking-tighter">
+                                {contributionData[key] > 0 ? '+' : ''}{formatMoney(contributionData[key], true)}
+                            </span>
+                        </div>
+                    )}
+
 
                     {/* Center: Percent Change Only (High Contrast, Large Text) */}
                     <div className="absolute inset-0 flex items-center justify-center pointer-events-none p-0.5 md:p-1">

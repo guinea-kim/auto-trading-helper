@@ -285,7 +285,14 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
             let hasChange = false;
 
             if (currentValue !== undefined && prevValue !== undefined && prevValue !== 0) {
-                diffValue = currentValue - prevValue;
+                // Calculate Raw Difference (Total Asset Change)
+                const rawDiff = currentValue - prevValue;
+
+                // Adjusted Difference (True Profit) = Raw Difference - Daily Contribution
+                const dailyContribution = contributionData[key] || 0;
+                diffValue = rawDiff - dailyContribution;
+
+                // Percent Change based on Adjusted Difference (Profit / Previous Asset)
                 percentChange = parseFloat(((diffValue / prevValue) * 100).toFixed(2));
                 hasChange = true;
             }

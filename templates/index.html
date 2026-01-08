@@ -314,16 +314,31 @@
                         <td>{{ "${:,.2f}".format(account.cash_balance|float) if account.cash_balance else "$0" }}</td>
                         <td>{{ "${:,.2f}".format(account.total_value|float) if account.total_value else "$0.00" }}</td>
                         <td>
-                            {% if account.contribution %}
-                            {{ "${:,.2f}".format(account.contribution|float) if not is_kr_market else
-                            "₩{:,.0f}".format(account.contribution|float) }}
+                            {% if current_market == 'kr' %}
+                            <form action="{{ url_for('update_account_contribution') }}" method="post" class="d-inline">
+                                <input type="hidden" name="market" value="{{ current_market }}">
+                                <input type="hidden" name="account_id" value="{{ account.id }}">
+                                <div class="input-group input-group-sm">
+                                    <span class="input-group-text">₩</span>
+                                    <input type="number" class="form-control" name="contribution"
+                                        value="{{ account.contribution|int if account.contribution else 0 }}"
+                                        style="min-width: 80px;">
+                                    <button type="submit" class="btn btn-outline-primary">
+                                        <i class="fas fa-save"></i>
+                                    </button>
+                                </div>
+                            </form>
                             {% else %}
-                            {{ "$0.00" if not is_kr_market else "₩0" }}
+                            {% if account.contribution %}
+                            {{ "${:,.2f}".format(account.contribution|float) }}
+                            {% else %}
+                            $0.00
                             {% endif %}
                             <button class="btn btn-sm btn-outline-info ms-2 view-history-btn"
                                 data-account="{{ account.account_number }}" data-market="{{ current_market }}">
                                 <i class="fas fa-list"></i>
                             </button>
+                            {% endif %}
                         </td>
                         <td>
                             {% if account.contribution and account.contribution > 0 and account.total_value %}

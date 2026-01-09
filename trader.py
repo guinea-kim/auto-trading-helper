@@ -3,7 +3,9 @@ from datetime import datetime
 import time
 from enum import IntEnum
 from library.logger_config import setup_logger
+from library.logger_config import setup_logger
 from library.alert import SendMessage
+from library.safety_guard import OrderValidator, SafetyException
 import argparse
 from strategies.schwab_strategy import SchwabMarketStrategy
 from strategies.korea_strategy import KoreaMarketStrategy
@@ -110,8 +112,29 @@ class TradingSystem:
             self.logger.error(f"Error getting positions for user {user_id}: {str(e)}")
             raise
 
-    def place_buy_order(self, rule: dict, quantity: int, price: float):
+    def place_buy_order(self, rule: dict, quantity: int, price: float, current_cash: float = None):
         self.logger.info(f"Placing buy order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
+        
+        # --- SAFETY GUARD (DRY RUN MODE) ---
+        try:
+            market_type = 'KR' if isinstance(self.market_strategy, KoreaMarketStrategy) else 'US'
+            
+            # Fetch cash if not provided (Safety Fallback)
+            if current_cash is None:
+                manager = self.get_manager(rule['user_id'])
+                current_cash = manager.get_cash(rule['hash_value'])
+                
+            OrderValidator.validate_buy(market_type, rule['symbol'], price, quantity, current_cash)
+            
+        except SafetyException as e:
+            # DRY RUN: Log ONLY. Do not raise yet.
+            self.logger.critical(f"[SAFETY_GUARD_TEST] WOULD BLOCK BUY ORDER: {str(e)}")
+            self.logger.critical(f"Context: {rule['symbol']}, Qty: {quantity}, Price: {price}, Balance: {current_cash}")
+            # raise # Uncomment to enable active blocking
+        except Exception as e:
+            self.logger.error(f"Error during Safety Guard validation: {str(e)}")
+        # -----------------------------------
+
         manager = self.get_manager(rule['user_id'])
         try:
             order = manager.place_limit_buy_order(rule['hash_value'], rule['symbol'], quantity, price)
@@ -135,8 +158,28 @@ class TradingSystem:
             self.logger.error(f"Error during buy order for {rule['symbol']}: {str(e)}")
             raise
 
-    def place_sell_order(self, rule: dict, quantity: int, price: float):
+    def place_sell_order(self, rule: dict, quantity: int, price: float, current_holding: int = None):
         self.logger.info(f"Placing sell order for rule {rule['id']}: {rule['symbol']} - {quantity} shares at ${price}")
+        
+        # --- SAFETY GUARD (DRY RUN MODE) ---
+        try:
+            market_type = 'KR' if isinstance(self.market_strategy, KoreaMarketStrategy) else 'US'
+            
+            # Use cached holding if not provided (Safety Fallback)
+            if current_holding is None:
+                current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+                
+            OrderValidator.validate_sell(market_type, rule['symbol'], price, quantity, current_holding)
+
+        except SafetyException as e:
+            # DRY RUN: Log ONLY. Do not raise yet.
+            self.logger.critical(f"[SAFETY_GUARD_TEST] WOULD BLOCK SELL ORDER: {str(e)}")
+            self.logger.critical(f"Context: {rule['symbol']}, Qty: {quantity}, Price: {price}, Holding: {current_holding}")
+            # raise # Uncomment to enable active blocking
+        except Exception as e:
+            self.logger.error(f"Error during Safety Guard validation: {str(e)}")
+        # -----------------------------------
+
         manager = self.get_manager(rule['user_id'])
         try:
             order = manager.place_limit_sell_order(rule['hash_value'], rule['symbol'], quantity, price)
@@ -520,7 +563,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             return
 
         self.logger.info(f"Attempting to sell {max_shares} shares of {symbol} at ${last_price}")
-        if self.place_sell_order(rule, max_shares, last_price):
+        if self.place_sell_order(rule, max_shares, last_price, current_holding):
             if current_holding - max_shares <= rule['target_amount']:
                 self.logger.info(
                     f"Rule {rule['id']} completed after selling {max_shares} shares. New holding: {current_holding - max_shares}")
@@ -565,7 +608,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         max_shares = min(max_shares, int(current_cash / last_price))
         if max_shares > 0:
             self.logger.info(f"Attempting to buy {max_shares} shares of {symbol} at ${last_price}")
-            if self.place_buy_order(rule, max_shares, last_price):
+            if self.place_buy_order(rule, max_shares, last_price, current_cash):
                 if rule['limit_type'] in ['weekly', 'monthly']:
                     # 정기 매수의 경우 매수 완료 후 PROCESSED로 변경
                     self.db_handler.update_rule_status(rule['id'], 'PROCESSED')

@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, jsonify
 import os
 from library import secret
 from library.mysql_helper import DatabaseHandler
@@ -6,7 +6,6 @@ from library.mysql_helper import DatabaseHandler
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY", secret.app_secret)
 
-# DB Handler 인스턴스 생성
 # DB Handler 인스턴스 생성
 try:
     us_db_handler = DatabaseHandler(secret.db_name)
@@ -276,6 +275,119 @@ def get_daily_assets():
         "assets": assets_map,
         "contributions": contributions_map
     }
+
+@app.route('/api/daily-assets/breakdown', methods=['GET'])
+def get_daily_assets_breakdown():
+    date_str = request.args.get('date')
+    market = request.args.get('market', 'us')
+
+    if not date_str:
+        return jsonify({"status": "error", "message": "Missing date parameter"}), 400
+
+    # Determine DB handler based on market
+    if market == 'kr':
+        handler = kr_db_handler
+    else:
+        handler = us_db_handler
+
+    try:
+        current_data = handler.get_daily_records_breakdown(date_str)
+        
+        # Fetch adjacent context
+        prev_date = handler.get_adjacent_date(date_str, 'prev')
+        next_date = handler.get_adjacent_date(date_str, 'next')
+        
+        prev_data = handler.get_daily_records_breakdown(prev_date) if prev_date else []
+        next_data = handler.get_daily_records_breakdown(next_date) if next_date else []
+
+        return jsonify({
+            "current": current_data,
+            "prev": {"date": prev_date, "data": prev_data} if prev_date else None,
+            "next": {"date": next_date, "data": next_data} if next_date else None
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route('/api/daily-assets/update', methods=['POST'])
+def update_daily_asset():
+    data = request.json
+    date_str = data.get('date')
+    amount = data.get('amount')
+    record_id = data.get('record_id') # Optional: if updating specific record
+    currency = data.get('currency', 'USD')
+    dry_run = data.get('dry_run', False)
+    market = data.get('market', 'us')
+
+    if not date_str or amount is None:
+        return jsonify({"status": "error", "message": "Missing date or amount"}), 400
+
+    # Determine DB handler based on market
+    if market == 'kr':
+        handler = kr_db_handler
+    else:
+        handler = us_db_handler # Corrected from 'db_handler' to 'us_db_handler'
+
+    try:
+        current_amount = float(amount)
+        
+        if record_id:
+             # Case 1: Updating specific record (Account Level)
+             records = handler.get_daily_records_breakdown(date_str)
+             target_record = next((r for r in records if str(r['id']) == str(record_id)), None)
+             
+             if not target_record:
+                 return jsonify({"status": "error", "message": "Record not found"}), 404
+                 
+             original_amount = float(target_record['amount'])
+             diff = current_amount - original_amount
+             
+             plan = {
+                "status": "success",
+                "type": "update",
+                "target_table": "daily_records",
+                "target_id": record_id,
+                "target_account": target_record['account_id'],
+                "current_value": original_amount,
+                "new_value": current_amount,
+                "diff": diff,
+                "dry_run": dry_run
+             }
+             
+             if not dry_run:
+                 handler.update_daily_record(record_id, current_amount)
+                 plan["executed"] = True
+                 
+             return jsonify(plan)
+             
+        elif data.get('account_id'):
+            # Case 2: Create New Record (Missing ID but Account ID provided)
+            # Check if record already exists for this account/date to prevent dups? 
+            # (Assuming frontend handles display, but safe to check? For now trust frontend context)
+            account_id = data.get('account_id')
+            
+            plan = {
+                "status": "success",
+                "type": "insert",
+                "target_table": "daily_records",
+                "target_account": account_id,
+                "new_value": current_amount,
+                "dry_run": dry_run
+            }
+            
+            if not dry_run:
+                new_id = handler.upsert_daily_record(date_str, account_id, current_amount)
+                plan["new_id"] = new_id
+                plan["executed"] = True
+                
+            return jsonify(plan)
+            
+        else:
+            return jsonify({"status": "error", "message": "Missing record_id or account_id"}), 400
+            
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route('/rule/update_field/<int:rule_id>/<field>', methods=['POST'])
 def update_rule_field(rule_id, field):

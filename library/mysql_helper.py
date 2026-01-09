@@ -596,6 +596,122 @@ class DatabaseHandler:
             print(f"Warning: Failed to fetch daily contributions ({e})")
             return {}
 
+    def get_daily_records_by_date(self, date_str: str, symbol: str = 'total') -> list:
+        """
+        특정 날짜와 심볼에 해당하는 daily_records 조회
+        """
+        try:
+            sql = """
+                SELECT id, record_date, account_id, symbol, amount
+                FROM daily_records
+                WHERE record_date = :date_str AND symbol = :symbol
+                ORDER BY id ASC
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str, "symbol": symbol})
+                return [dict(row._mapping) for row in result]
+        except Exception as e:
+            print(f"Error fetching daily records: {e}")
+            return []
+
+    def get_daily_records_breakdown(self, date_str: str) -> list:
+        """
+        특정 날짜의 daily_records를 계좌 정보와 함께 조회 (symbol='total'만).
+        데이터가 없는 계좌도 포함하여 반환 (LEFT JOIN).
+        """
+        try:
+            sql = """
+                SELECT dr.id, :date_str as record_date, a.id as account_id, 
+                       COALESCE(dr.symbol, 'total') as symbol, 
+                       COALESCE(dr.amount, 0) as amount, 
+                       a.description, a.user_id
+                FROM accounts a
+                LEFT JOIN daily_records dr 
+                    ON a.id = dr.account_id 
+                    AND dr.record_date = :date_str 
+                    AND dr.symbol = 'total'
+                ORDER BY a.id
+            """
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str})
+                rows = []
+                for row in result:
+                    d = dict(row._mapping)
+                    if isinstance(d['amount'], decimal.Decimal):
+                        d['amount'] = float(d['amount'])
+                    if d['record_date']:
+                        d['record_date'] = str(d['record_date'])
+                    rows.append(d)
+                return rows
+        except Exception as e:
+            print(f"Error fetching daily breakdown: {e}")
+            return []
+
+    def get_adjacent_date(self, date_str: str, direction: str = 'prev') -> str:
+        """
+        주어진 날짜 기준으로 이전(prev) 또는 다음(next) 데이터가 있는 날짜를 조회.
+        Returns:
+            str: "YYYY-MM-DD" or None
+        """
+        try:
+            op = '<' if direction == 'prev' else '>'
+            order = 'DESC' if direction == 'prev' else 'ASC'
+            
+            sql = f"""
+                SELECT record_date
+                FROM daily_records
+                WHERE record_date {op} :date_str AND symbol = 'total'
+                ORDER BY record_date {order}
+                LIMIT 1
+            """
+            
+            with self.engine.connect() as conn:
+                result = conn.execute(text(sql), {"date_str": date_str}).fetchone()
+                if result:
+                    return str(result[0])
+                return None
+        except Exception as e:
+            print(f"Error fetching adjacent date ({direction}): {e}")
+            return None
+
+    def update_daily_record(self, record_id: int, amount: float):
+        """
+        특정 daily_record 업데이트
+        """
+        try:
+            sql = """
+                UPDATE daily_records
+                SET amount = :amount
+                WHERE id = :record_id
+            """
+            with self.engine.begin() as conn:
+                conn.execute(text(sql), {"amount": amount, "record_id": record_id})
+        except Exception as e:
+            print(f"Error updating daily record {record_id}: {e}")
+            raise
+
+    def upsert_daily_record(self, date_str: str, account_id: str, amount: float, symbol: str = 'total') -> int:
+        """
+        daily_record 추가 또는 업데이트 (Upsert)
+        """
+        try:
+            sql = """
+                INSERT INTO daily_records (record_date, account_id, symbol, amount)
+                VALUES (:date_str, :account_id, :symbol, :amount)
+                ON DUPLICATE KEY UPDATE amount = :amount
+            """
+            with self.engine.begin() as conn:
+                result = conn.execute(text(sql), {
+                    "date_str": date_str, 
+                    "account_id": account_id, 
+                    "symbol": symbol, 
+                    "amount": amount
+                })
+                # lastrowid might be 0 for updates in some drivers, but good enough for confirmation
+                return result.lastrowid 
+        except Exception as e:
+            print(f"Error upserting daily record: {e}")
+            raise
 
     def execute_many(self, sql: str, args: list) -> None:
         """Execute multiple SQL statements (bulk insert/update)"""

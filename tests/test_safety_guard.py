@@ -67,5 +67,28 @@ class TestSafetyGuard(unittest.TestCase):
         with self.assertRaises(SafetyException):
             OrderValidator.validate_buy('US', 'TEST', price, qty, cash)
 
+    def test_zero_price(self):
+        # Price 0 -> Should Block
+        with self.assertRaises(SafetyException):
+            OrderValidator.validate_buy('US', 'AAPL', 0, 10, 1000)
+        with self.assertRaises(SafetyException):
+            OrderValidator.validate_sell('US', 'AAPL', 0, 10, 100)
+
+    def test_negative_quantity(self):
+        # Quantity -1 -> Should Block
+        with self.assertRaises(SafetyException):
+            OrderValidator.validate_buy('US', 'AAPL', 100, -1, 1000)
+        with self.assertRaises(SafetyException):
+            OrderValidator.validate_sell('US', 'AAPL', 100, -1, 10)
+
+    def test_positive_buy_kr(self):
+        # Normal Buy KRW: 10,000 KRW (Limit 100M)
+        self.assertTrue(OrderValidator.validate_buy('KR', '005930', 70000, 10, 1000000))
+
+    def test_fat_finger_buy_kr(self):
+        # Buy 200M KRW (Limit 100M) -> Should Block
+        with self.assertRaises(SafetyException):
+            OrderValidator.validate_buy('KR', '005930', 200000000, 1, 1000000000)
+
 if __name__ == '__main__':
     unittest.main()

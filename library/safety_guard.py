@@ -1,4 +1,4 @@
-from decimal import Decimal
+
 
 class SafetyException(Exception):
     pass
@@ -71,7 +71,7 @@ class OrderValidator:
 
         # 2. Price Check
         if price < min_price:
-             raise SafetyException(f"ERROR: Price {price} is below minimum threshold {min_price}")
+            raise SafetyException(f"ERROR: Price {price} is below minimum threshold {min_price}")
 
         # 3. Holding Check (Short Sell Prevention)
         if current_holding is not None and quantity > current_holding:

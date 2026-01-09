@@ -3,7 +3,7 @@ from datetime import datetime
 import time
 from enum import IntEnum
 from library.logger_config import setup_logger
-from library.logger_config import setup_logger
+
 from library.alert import SendMessage
 from library.safety_guard import OrderValidator, SafetyException
 import argparse
@@ -167,7 +167,8 @@ class TradingSystem:
             
             # Use cached holding if not provided (Safety Fallback)
             if current_holding is None:
-                current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+                account_positions = self.positions_by_account.get(rule['hash_value'], {})
+                current_holding = account_positions.get(rule['symbol'], 0)
                 
             OrderValidator.validate_sell(market_type, rule['symbol'], price, quantity, current_holding)
 

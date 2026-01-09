@@ -39,7 +39,7 @@ class OrderValidator:
             
         # 2. Penny Stock / Data Error Check
         if price < min_price:
-             raise SafetyException(f"ERROR: Price {price} is below minimum threshold {min_price}")
+            raise SafetyException(f"ERROR: Price {price} is below minimum threshold {min_price}")
 
         # 3. Solvency Check (Strict vs Balance)
         # We allow up to 100% of cash. If logic assumes we can buy $100 with $99.99, this will block it.

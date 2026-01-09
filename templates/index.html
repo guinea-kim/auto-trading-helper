@@ -592,7 +592,8 @@
                             rule.trade_action }}{% endif %}</td>
                         <td>{{ rule.daily_money }}</td>
                         <td>
-                            {% if rule.cash_only %}<i class="fas fa-check text-success"></i>{% endif %}
+                            <input type="checkbox" class="form-check-input" disabled {% if rule.cash_only %}checked{%
+                                endif %}>
                         </td>
                         <td>
                             <span

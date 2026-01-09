@@ -584,7 +584,35 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Automated Trading System')
     parser.add_argument('--market', choices=['schwab', 'korea'], default='schwab',
                         help='Market to trade on (schwab or korea)')
+    parser.add_argument('--no-record', action='store_true', help='Disable market data recording')
     args = parser.parse_args()
+
+    # --- Data Recorder Integration ---
+    recorder = None
+    if not args.no_record:
+        try:
+            from library.recorder import AsyncDataRecorder, apply_patches, backup_databases
+            from library.schwab_manager import SchwabManager
+            from library.korea_manager import KoreaManager
+            
+            today_str = datetime.now().strftime('%Y%m%d')
+            record_filename = f"records/market_data_{args.market}_{today_str}.jsonl"
+            
+            # 1. Backup DB at Start
+            backup_databases('start')
+            
+            recorder = AsyncDataRecorder(record_filename)
+            
+            # Apply patches to Manager classes
+            patched_count = apply_patches(recorder, [SchwabManager, KoreaManager])
+            
+            # Use print or basic logger since setup_logger might not be fully configured for 'recorder' yet
+            print(f"[Recorder] Active: {record_filename}. Patched {patched_count} methods.")
+            
+        except Exception as e:
+            print(f"[Recorder] Failed to initialize: {e}")
+            # Do not crash the app, just continue without recording
+            pass
 
     # Create the appropriate market strategy
     if args.market.lower() == 'korea':
@@ -613,3 +641,11 @@ Status: Trading system crashed unexpectedly
             print(f"Failed to send crash notification: {alert_error}")
             print(f"Original error: {e}")
         raise  # 원래 에러를 다시 발생시켜서 디버깅 정보 유지
+    finally:
+        if recorder:
+            try:
+                # 2. Backup DB at End
+                backup_databases('end')
+            except Exception as e:
+                print(f"[Backup] Failed at end: {e}")
+            recorder.close()

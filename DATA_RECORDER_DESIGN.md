@@ -33,28 +33,21 @@ Records execution environment info at the start of the file to check consistency
 ```text
 auto-trading-helper/
 ├── library/
-├── strategies/
 ├── trader.py
-├── ...
 └── records/                     <-- New Directory (Git Ignored)
     ├── market_data_schwab_20240109.jsonl
-    ├── market_data_schwab_20240110.jsonl
-    ├── market_data_korea_20240109.jsonl
-    └── market_data_korea_20240110.jsonl
+    ├── backup_helper_db_20240109_063000_start.sql  <-- DB Snapshot
+    └── backup_helper_db_20240109_064500_end.sql
 ```
 
-```json
-{
-  "meta": {
-    "market": "schwab",
-    "filename": "market_data_schwab_20240109.jsonl",
-    "start_time": "2024-01-08T09:30:00",
-    "trigger": "crontab", 
-    "git_hash": "a1b2c3d...",
-    "trader_version": "v1.0"
-  }
-}
-```
+### 1.6. Database Backup Strategy
+To support perfect replay, we capture the **Database State** before and after the trading session.
+- **Tool**: `mysqldump`
+- **Timing**:
+    - **Start**: Immediately after `trader.py` starts (if recording is enabled).
+    - **End**: In the `finally` block before `trader.py` exits.
+- **Targets**: Both US (`helper_db`) and KR (`helper_kr_db`) databases if configured.
+- **Security**: Uses `os.environ['MYSQL_PWD']` to avoid exposing passwords in process arguments.
 
 ---
 

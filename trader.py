@@ -143,8 +143,8 @@ class TradingSystem:
                 alert_msg = self._create_buy_alert_message(rule, quantity, price)
                 SendMessage(alert_msg)
 
-                self.positions_by_account[rule['hash_value']][rule['symbol']] = (
-                        self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) + quantity
+                self.positions_by_account.setdefault(rule['hash_value'], {})[rule['symbol']] = (
+                        self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0) + quantity
                 )
                 order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
 
@@ -189,8 +189,8 @@ class TradingSystem:
                 alert_msg = self._create_sell_alert_message(rule, quantity, price)
                 SendMessage(alert_msg)
 
-                self.positions_by_account[rule['hash_value']][rule['symbol']] = (
-                        self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0) - quantity
+                self.positions_by_account.setdefault(rule['hash_value'], {})[rule['symbol']] = (
+                        self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0) - quantity
                 )
                 order_id = self.market_strategy.extract_order_id(manager, rule['hash_value'], order)
 
@@ -205,7 +205,7 @@ class TradingSystem:
             raise
 
     def _create_buy_alert_message(self, rule, quantity, price):
-        current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+        current_holding = self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0)
         new_holding = current_holding + quantity
         total_cost = quantity * price
         symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
@@ -249,7 +249,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         return message
 
     def _create_sell_alert_message(self, rule, quantity, price):
-        current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+        current_holding = self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0)
         new_holding = current_holding - quantity
         total_sale = quantity * price
         symbol = rule['symbol'] if 'stock_name' not in rule else rule['stock_name']
@@ -548,7 +548,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 self.db_handler.update_current_price_quantity(rule_id, last_price, current_holding, average_price)
 
     def sell_stock(self, rule, last_price, symbol):
-        current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+        current_holding = self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0)
         today_trading_money = self.db_handler.get_trade_today(rule['id'])
 
         # 매도할 최대 수량 계산
@@ -571,7 +571,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
 
     def buy_stock(self, manager, rule, last_price, symbol):
-        current_holding = self.positions_by_account[rule['hash_value']].get(rule['symbol'], 0)
+        current_holding = self.positions_by_account.get(rule['hash_value'], {}).get(rule['symbol'], 0)
         today_trading_money = self.db_handler.get_trade_today(rule['id'])
 
         # 매수할 최대 수량 계산
@@ -597,7 +597,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],
                 required_cash - current_cash,
-                self.positions_by_account[rule['hash_value']]
+                self.positions_by_account.get(rule['hash_value'], {})
             )
             if order and order.is_success:
                 self.logger.info("ETF sold successfully for cash")

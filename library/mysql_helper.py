@@ -126,10 +126,10 @@ class DatabaseHandler:
     def get_trading_rules(self) -> List[Dict]:
         """모든 거래 규칙 조회 (계정 설명 포함)"""
         sql = """
-            SELECT tr.*, a.description as account_description 
+            SELECT tr.*, a.description as account_description, a.user_id, a.account_number
             FROM trading_rules tr 
             JOIN accounts a ON tr.account_id = a.id 
-            ORDER BY tr.status, tr.account_id
+            ORDER BY tr.status, a.user_id, a.account_number, tr.symbol
         """
         with self.engine.connect() as conn:
             result = conn.execute(text(sql))

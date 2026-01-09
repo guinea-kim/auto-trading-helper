@@ -53,3 +53,4 @@ library/config.py
 chrome_profile_real/
 puppeteer_profile/
 temp_*.py
+records/

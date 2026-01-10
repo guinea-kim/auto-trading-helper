@@ -461,14 +461,14 @@
                         <td class="text-end">
                             <div class="d-flex align-items-center justify-content-end">
                                 <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_value') }}"
-                                    method="post" class="d-inline me-2" style="flex: 1;">
+                                    method="post" class="d-inline me-1">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <input type="number" step="0.01"
                                         class="form-control form-control-sm editable-field font-monospace text-end"
-                                        name="value" value="{{ rule.limit_value }}" title="한계값">
+                                        name="value" value="{{ rule.limit_value }}" title="한계값" style="width: 100px;">
                                 </form>
                                 <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_type') }}"
-                                    method="post" class="d-inline" style="flex: 0 0 auto;">
+                                    method="post" class="d-inline">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <select name="value" class="form-select form-select-sm"
                                         style="width: 70px; font-size: 0.8rem;">

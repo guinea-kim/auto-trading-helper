@@ -54,3 +54,7 @@ chrome_profile_real/
 puppeteer_profile/
 temp_*.py
 records/
+app.err
+scripts/run_app_bg.sh
+scripts/*.plist
+backups/

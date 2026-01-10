@@ -5,7 +5,7 @@ from enum import IntEnum
 from library.logger_config import setup_logger
 
 from library.alert import SendMessage
-from library.safety_guard import OrderValidator, SafetyException
+from library.safety_guard import OrderValidator, SafetyException, StateIntegrityGuard
 import argparse
 from strategies.schwab_strategy import SchwabMarketStrategy
 from strategies.korea_strategy import KoreaMarketStrategy
@@ -393,6 +393,35 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         for user in users:
             # 1. 상세 데이터 로드 (평단가 확인용)
             self.get_positions(user)
+
+            # [GUARD] Phase 1: State Integrity Check
+            import sys
+            try:
+                # Check integrity BEFORE allowing any sync logic
+                # self.positions_result_by_account holds {hash_val: {symbol: data}}
+                StateIntegrityGuard.check_integrity(
+                    self.db_handler, 
+                    manager, 
+                    user, 
+                    self.positions_result_by_account
+                )
+            except SafetyException as e:
+                # Catch SafetyException (which wraps the critical issues)
+                # If guard raises SystemExit directly, we might miss alerting
+                # The Guard in safety_guard.py currently raises SafetyException for this block.
+                
+                error_msg = f"🚨 BOT STOPPED (State Integrity Error): {e}"
+                self.logger.critical(error_msg)
+                
+                # Send Critical Alert Email
+                try:
+                    SendMessage(error_msg)
+                except Exception as alert_err:
+                    self.logger.error(f"Failed to send alert: {alert_err}")
+                
+                # Fail Closed
+                sys.exit(1)
+
             # 2. 분할/병합 체크 및 DB 보정
             self.sync_split_adjustments(user)
             # 3. 매매 로직용 데이터 로드

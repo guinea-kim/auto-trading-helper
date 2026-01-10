@@ -310,7 +310,7 @@ class DatabaseHandler:
 
     
 
-    def update_split_adjustment(self, rule_id, new_avg_price, new_high_price, new_target_amount,
+    def update_split_and_merge_adjustment(self, rule_id, new_avg_price, new_high_price, new_target_amount,
                                 new_current_quantity):
         with self.engine.connect() as conn:
             """액면분할/병합 반영 업데이트"""

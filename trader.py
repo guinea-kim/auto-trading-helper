@@ -5,7 +5,7 @@ from enum import IntEnum
 from library.logger_config import setup_logger
 
 from library.alert import SendMessage
-from library.safety_guard import OrderValidator, SafetyException
+from library.safety_guard import OrderValidator, SafetyException, StateIntegrityGuard
 import argparse
 from strategies.schwab_strategy import SchwabMarketStrategy
 from strategies.korea_strategy import KoreaMarketStrategy
@@ -297,7 +297,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
             self.logger.error(f"Error updating market hours: {str(e)}")
             return True
 
-    def sync_split_adjustments(self, user_id: str):
+    def sync_split_and_merge_adjustments(self, user_id: str):
         """
         장 시작 전 액면분할/병합 체크 및 DB 업데이트
         증권사 평단가와 DB 평단가를 비교하여 비율만큼 high_price와 target_amount를 조정
@@ -317,7 +317,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                     current_positions[(hash_value, symbol)] = data
 
         except Exception as e:
-            self.logger.error(f"Failed to fetch positions for split check: {e}")
+            self.logger.error(f"Failed to fetch positions for split/merge check: {e}")
             return
 
         # 2. DB에 저장된 활성 규칙 가져오기
@@ -353,7 +353,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 # 보정 계산을 위한 비율 (Ratio)은 여전히 평단가 변화율로 계산합니다.
                 if db_avg_price == 0 or broker_avg_price == 0:
                     self.logger.warning(
-                        f"Split detected for {rule['symbol']} but avg price is 0. Skipping rule adjustment."
+                        f"Split/Merge detected for {rule['symbol']} but avg price is 0. Skipping rule adjustment."
                     )
                     continue
 
@@ -372,9 +372,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
                 self.logger.info(f"Adjusting Target Amount: {current_target} -> {new_target_amount}")
 
                 # DB 업데이트
-                # update_rule_split_info 메서드는 DB Handler에 새로 추가해야 함
-                # 혹은 기존 update 메서드들을 조합해서 사용
-                self.db_handler.update_split_adjustment(
+                self.db_handler.update_split_and_merge_adjustment(
                     rule_id=rule['id'],
                     new_avg_price=broker_avg_price,
                     new_high_price=new_high_price,
@@ -393,8 +391,37 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         for user in users:
             # 1. 상세 데이터 로드 (평단가 확인용)
             self.get_positions(user)
+
+            # [GUARD] Phase 1: State Integrity Check
+            import sys
+            try:
+                # Check integrity BEFORE allowing any sync logic
+                # self.positions_result_by_account holds {hash_val: {symbol: data}}
+                StateIntegrityGuard.check_integrity(
+                    self.db_handler, 
+                    manager, 
+                    user, 
+                    self.positions_result_by_account
+                )
+            except SafetyException as e:
+                # Catch SafetyException (which wraps the critical issues)
+                # If guard raises SystemExit directly, we might miss alerting
+                # The Guard in safety_guard.py currently raises SafetyException for this block.
+                
+                error_msg = f"🚨 BOT STOPPED (State Integrity Error): {e}"
+                self.logger.critical(error_msg)
+                
+                # Send Critical Alert Email
+                try:
+                    SendMessage(error_msg)
+                except Exception as alert_err:
+                    self.logger.error(f"Failed to send alert: {alert_err}")
+                
+                # Fail Closed
+                sys.exit(1)
+
             # 2. 분할/병합 체크 및 DB 보정
-            self.sync_split_adjustments(user)
+            self.sync_split_and_merge_adjustments(user)
             # 3. 매매 로직용 데이터 로드
             self.load_daily_positions(user)
 

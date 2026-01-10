@@ -9,12 +9,19 @@ from library.safety_guard import OrderValidator, SafetyException, StateIntegrity
 import argparse
 from strategies.schwab_strategy import SchwabMarketStrategy
 from strategies.korea_strategy import KoreaMarketStrategy
+from library.clock import Clock
+
 class OrderType(IntEnum):
     SELL = 0
     BUY = 1
 
 class TradingSystem:
-    def __init__(self, market_strategy):
+    def __init__(self, market_strategy, clock: Clock = None):
+        self.clock = clock or Clock()
+        # Inject clock into strategy if it supports it, ensuring synchronization
+        if hasattr(market_strategy, 'clock'):
+            market_strategy.clock = self.clock
+
         self.market_strategy = market_strategy
         self.db_handler = market_strategy.get_db_handler()
         self.managers = {}  # {user_id: UserAuthManager}
@@ -38,7 +45,7 @@ class TradingSystem:
 
     def check_periodic_buy_date(self, rule: dict) -> bool:
         """정기 매수 날짜인지 확인하는 함수"""
-        today = datetime.now()
+        today = self.clock.now()
         
         if rule['limit_type'] == 'weekly':
             # 0(월요일) ~ 6(일요일)
@@ -250,7 +257,7 @@ Condition:
 - Updated Quantity: {current_holding} -> {new_holding}
 - Daily Money Limit: {rule['daily_money']}
                     
-Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Order At {self.clock.now().strftime('%Y-%m-%d %H:%M:%S')}
                     """
         return message
 
@@ -284,7 +291,7 @@ Condition:
 - Updated Quantity: {current_holding}주 -> {new_holding}주
 - Daily Money Limit: {rule['daily_money']}
                     
-Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
+Order At {self.clock.now().strftime('%Y-%m-%d %H:%M:%S')}
                     """
         return message
 
@@ -499,7 +506,7 @@ Order At {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
         self.update_result(users)
 
     def update_result(self, users):
-        today = datetime.now().strftime('%Y%m%d')
+        today = self.clock.now().strftime('%Y%m%d')
         for user in users:
             self.get_positions(user)
             # Get accounts for this user and update cash balances

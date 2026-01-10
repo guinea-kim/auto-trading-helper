@@ -15,8 +15,10 @@ REQUEST_TIMEOUT = 30
 from library.secret import USER_AUTH_CONFIGS_KR
 from library import secret
 from library.mysql_helper import DatabaseHandler
+from library.clock import Clock
+
 class KoreaManager:
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str, clock: Clock = None):
         self.user_id = user_id
         self.auth_config = USER_AUTH_CONFIGS_KR[user_id]
         self.app_key = USER_AUTH_CONFIGS_KR[self.user_id]['app_key']
@@ -24,6 +26,7 @@ class KoreaManager:
         self.product = USER_AUTH_CONFIGS_KR[self.user_id]['product_cd']
         self.hash_dict = None
         self.logger = logging.getLogger(__name__)
+        self.clock = clock or Clock()
 
         lib_dir = Path(__file__).parent
         self.token_path = str(lib_dir / 'tokens' / f'kr_token_{user_id}.json')
@@ -49,7 +52,7 @@ class KoreaManager:
     def IsTodayOpenCheck(self):
         time.sleep(0.2)
 
-        now_time = datetime.now(ZoneInfo('Asia/Seoul'))
+        now_time = self.clock.now(ZoneInfo('Asia/Seoul'))
         formattedDate = now_time.strftime("%Y%m%d")
 
         PATH = "uapi/domestic-stock/v1/quotations/chk-holiday"
@@ -79,7 +82,7 @@ class KoreaManager:
             print("Error Code : " + str(res.status_code) + " | " + res.text)
             return res.json()["msg_cd"]
     def get_market_hours(self):
-        now_time = datetime.now(ZoneInfo('Asia/Seoul'))
+        now_time = self.clock.now(ZoneInfo('Asia/Seoul'))
         date_week = now_time.weekday()
 
         IsOpen = False

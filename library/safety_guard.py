@@ -154,17 +154,29 @@ class StateIntegrityGuard:
                  # Define "Split Signature" vs "Manual Trade Signature"
                  # Manual Trade: Price is roughly same (Ratio ~ 1.0), Qty changed.
                  # Split: Price changed significantly (Ratio ~ 0.5, 0.1, etc).
+                 # Merge (Reverse Split): Price increases significantly (Ratio ~ 2.0, 10.0, etc).
                  
                  # We assume normal volatility is within +/- 30% (0.7 ~ 1.3)
-                 # If ratio is outside 0.7~1.3, it is likely a Split or massive crash (which pauses trading anyway).
+                 # If ratio is outside 0.7~1.3, it is likely a Split/Merge or massive crash (which pauses trading anyway).
                  # If ratio is INSIDE 0.7~1.3, and Qty changed => MANUAL TRADE.
                  
-                 is_likely_split = (ratio < 0.7 or ratio > 1.3)
+                 is_likely_split_or_merge = (ratio < 0.7 or ratio > 1.3)
+
+                 # Safety Check: Directional Logic
+                 # If Price Dropped (Ratio < 1.0), Quantity MUST Increase.
+                 # If Price Rose (Ratio > 1.0), Quantity MUST Decrease.
+                 if is_likely_split_or_merge:
+                      if ratio < 1.0 and broker_qty <= db_qty:
+                           is_likely_split_or_merge = False
+                           issues.append(f"CRITICAL: Split/Merge Logic Mismatch. Price Dropped (Ratio {ratio:.2f}) but Quantity did not increase (DB:{db_qty} -> Broker:{broker_qty}). Likely Crash + Sell.")
+                      elif ratio > 1.0 and broker_qty >= db_qty:
+                           is_likely_split_or_merge = False
+                           issues.append(f"CRITICAL: Split/Merge Logic Mismatch. Price Rose (Ratio {ratio:.2f}) but Quantity did not decrease (DB:{db_qty} -> Broker:{broker_qty}). Likely Pump + Buy.")
                  
-                 if not is_likely_split:
-                     issues.append(f"CRITICAL: Quantity Mismatch without Split Signature. {stock_name} ({symbol}): DB:{db_qty} vs Real:{broker_qty}. Price Ratio:{ratio:.2f} (Not a split). Likely Manual Trade.")
+                 if not is_likely_split_or_merge:
+                     issues.append(f"CRITICAL: Quantity Mismatch without Split/Merge Signature. {stock_name} ({symbol}): DB:{db_qty} vs Real:{broker_qty}. Price Ratio:{ratio:.2f} (Not a split/merge). Likely Manual Trade.")
                  else:
-                     # Likely a split, let the existing sync_split_adjustments logic handle it.
+                     # Likely a split or merge, let the existing sync_split_adjustments logic handle it.
                      pass
             else:
                 # DB Avg Price is 0, but we have quantity? Data anomaly.

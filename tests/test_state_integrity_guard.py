@@ -71,7 +71,7 @@ class TestStateIntegrityGuard(unittest.TestCase):
         with self.assertRaises(SafetyException) as cm:
             StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
         
-        self.assertIn("Quantity Mismatch without Split Signature", str(cm.exception))
+        self.assertIn("Quantity Mismatch without Split/Merge Signature", str(cm.exception))
         self.assertIn("Likely Manual Trade", str(cm.exception))
 
     def test_split_detection_pass(self):
@@ -236,9 +236,39 @@ class TestStateIntegrityGuard(unittest.TestCase):
         with self.assertRaises(SafetyException):
             StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
 
-        # 4. Ratio 1.31 -> Likely Split -> PASS
+        # 4. Ratio 1.31 -> Likely Split (Merge/Reverse Split) -> PASS
+        # MUST decrease quantity for valid Merge (Price Up -> Qty Down)
+        # Previous broker_qty was 200 (Increase), which is invalid for Merge.
+        broker_positions[self.hash_val]['AAPL']['quantity'] = 50 # Valid Merge quantity
         broker_positions[self.hash_val]['AAPL']['last_price'] = 131.0
         StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
+
+    def test_crash_and_sell_should_fail(self):
+        """
+        Price drops 50% (Ratio 0.5, looks like split) AND Quantity drops 50% (Sold shares).
+        Current logic might pass this as 'Split' due to Ratio 0.5.
+        But Split (Price Drop) implies Quantity INCREASE.
+        This mismatch must FAIL.
+        """
+        self.mock_db.get_active_trading_rules.return_value = [self.base_rule] # Qty 100, Price 150
+        
+        # Scenario: Market crash (-50%) + User Panic Sell (-50%)
+        broker_positions = {
+            self.hash_val: {
+                'AAPL': {
+                    'quantity': 50, # Dropped from 100
+                    'last_price': 75.0, # Dropped from 150 (Ratio 0.5)
+                    'average_price': 75.0
+                }
+            }
+        }
+        
+        # This SHOULD raise SafetyException.
+        # If logic is weak, it might pass (False Negative).
+        with self.assertRaises(SafetyException) as cm:
+            StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
+            
+        self.assertIn("Split/Merge Logic Mismatch", str(cm.exception)) # Anticipated new error message
 
 if __name__ == '__main__':
     unittest.main()

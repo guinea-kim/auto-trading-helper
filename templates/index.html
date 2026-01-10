@@ -144,6 +144,29 @@
             display: table-row-group !important;
             visibility: visible !important;
         }
+
+        .positive-profit-soft {
+            color: #198754;
+            opacity: 0.6;
+        }
+        .negative-profit-soft {
+            color: #dc3545;
+            opacity: 0.6;
+        }
+        .positive-profit-bold {
+            color: #198754;
+            opacity: 1.0;
+            font-weight: 700;
+        }
+        .negative-profit-bold {
+            color: #dc3545;
+            opacity: 1.0;
+            font-weight: 700;
+        }
+        .neutral-profit {
+            color: #6c757d;
+            opacity: 0.5;
+        }
     </style>
 </head>
 
@@ -255,15 +278,16 @@
             <table class="table table-striped">
                 <thead>
                     <tr>
-                        <th class="text-start">종목</th>
-                        <th class="text-end">보유 수량</th>
-                        <th class="text-end">평가금액</th>
-                        <th class="text-end">비중 (%)</th>
+                        <th class="text-start" style="width: 1%; white-space: nowrap;">종목</th>
+                        <th class="text-end ps-4" style="width: 1%; white-space: nowrap;">보유 수량</th>
+                        <th class="text-end ps-4" style="width: 1%; white-space: nowrap;">평가금액</th>
+                        <th class="text-end ps-4" style="width: 1%; white-space: nowrap;">비중 (%)</th>
                         <th class="text-center">그래프</th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for allocation in consolidated_allocations %}
+                    {% set is_significant = allocation.diff_percentage and allocation.diff_percentage|abs >= 1.0 %}
                     <tr>
                         <td class="text-start">
                             {% if allocation.symbol == 'cash' %}
@@ -272,16 +296,52 @@
                             <strong>{{ allocation.symbol }}</strong>
                             {% endif %}
                         </td>
-                        <td class="text-end font-monospace">
+                        <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
                             {% if allocation.total_quantity %}
-                            {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity % 1 == 0
-                            else "{:,.4f}".format(allocation.total_quantity|float) }}
+                            {% if allocation.diff_quantity and allocation.diff_quantity != 0 %}
+                            {% if is_significant %}
+                                <small class="{% if allocation.diff_quantity > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
+                            {% else %}
+                                <small class="{% if allocation.diff_quantity > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
+                            {% endif %}
+                                ({{ "{:+,.0f}".format(allocation.diff_quantity|float) if allocation.diff_quantity % 1 == 0
+                                else "{:+,.4f}".format(allocation.diff_quantity|float) }})
+                            </small>
+                            {% endif %}
+                            <span>
+                                {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity % 1 == 0
+                                else "{:,.4f}".format(allocation.total_quantity|float) }}
+                            </span>
                             {% else %}
                             -
                             {% endif %}
                         </td>
-                        <td class="text-end font-monospace">{{ "${:,.2f}".format(allocation.total_value|float) }}</td>
-                        <td class="text-end font-monospace">{{ "{:.2f}%".format(allocation.percentage|float) }}</td>
+                        <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
+                            {% if allocation.diff_value and allocation.diff_value != 0 %}
+                            {% if is_significant %}
+                                <small class="{% if allocation.diff_value > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
+                            {% else %}
+                                <small class="{% if allocation.diff_value > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
+                            {% endif %}
+                                ({{ "{:+,.2f}".format(allocation.diff_value|float) }})
+                            </small>
+                            {% endif %}
+                            <span>{{ "${:,.2f}".format(allocation.total_value|float) }}</span>
+                        </td>
+                        <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
+                            {% if allocation.diff_percentage and allocation.diff_percentage != 0 %}
+                            {% if is_significant %}
+                                <small class="{% if allocation.diff_percentage > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
+                            {% elif allocation.diff_percentage|abs <= 0.01 %}
+                                <small class="neutral-profit me-1" style="font-size: 0.75em;">
+                            {% else %}
+                                <small class="{% if allocation.diff_percentage > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
+                            {% endif %}
+                                ({{ "{:+.2f}%".format(allocation.diff_percentage|float) }})
+                            </small>
+                            {% endif %}
+                            <span>{{ "{:.2f}%".format(allocation.percentage|float) }}</span>
+                        </td>
                         <td class="text-center">
                             <div class="progress" style="height: 24px;">
                                 <div class="progress-bar

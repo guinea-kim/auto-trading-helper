@@ -87,6 +87,12 @@ const AssetCalendarApp = ({ initialCurrency = 'USD' }) => {
         console.warn("Client-side save is disabled in API mode.");
     };
 
+    // --- 헬퍼 함수: 계좌번호 마스킹 ---
+    const maskAccountNumber = (str) => {
+        if (!str || str.length <= 3) return str;
+        return '****' + str.slice(-3);
+    };
+
     // --- 헬퍼 함수: 금액 포맷팅 (핵심) ---
     const formatMoney = (usdValue, showSymbol = true) => {
         if (usdValue === undefined || usdValue === null) return '-';
@@ -763,7 +769,7 @@ Are you sure you want to update the database?`;
                                                                 {item.user_id}
                                                             </span>
                                                             <span className="text-sm font-bold text-gray-900 truncate leading-none" title={item.description || item.account_id}>
-                                                                {item.description || item.account_id}
+                                                                {item.description || maskAccountNumber(item.account_id)}
                                                             </span>
                                                         </div>
 

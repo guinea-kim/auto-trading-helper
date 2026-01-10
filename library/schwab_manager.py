@@ -17,13 +17,16 @@ from library.secret import USER_AUTH_CONFIGS
 
 
 
+from library.clock import Clock
+
 class SchwabManager:
-    def __init__(self, user_id: str):
+    def __init__(self, user_id: str, clock: Clock = None):
         self.user_id = user_id
         self.auth_config = USER_AUTH_CONFIGS[user_id]
         self.client = None
         self.hash_dict = None
         self.logger = logging.getLogger(__name__)
+        self.clock = clock or Clock()
 
         lib_dir = Path(__file__).parent
         self.token_path = str(lib_dir / 'tokens' / f'schwab_token_{user_id}.json')
@@ -60,7 +63,7 @@ class SchwabManager:
             accounts[account['accountNumber']] = account['hashValue']
         return accounts
     def get_market_hours(self):
-        now = datetime.now(ZoneInfo("America/Los_Angeles"))
+        now = self.clock.now(ZoneInfo("America/Los_Angeles"))
 
         if now.weekday() >= 5:  # 주말
             self.logger.info("Market is closed (weekend)")

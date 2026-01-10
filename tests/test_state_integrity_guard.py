@@ -92,16 +92,17 @@ class TestStateIntegrityGuard(unittest.TestCase):
         # Should pass
         StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
 
-    def test_reverse_split_detection_pass(self):
-        """Qty halved, Price doubled (Ratio ~2.0) -> Should Pass"""
+    def test_merge_detection_pass(self):
+        """Qty halved, Price doubled (Ratio ~2.0) -> Should Pass (Merge/Reverse Split)"""
         self.mock_db.get_active_trading_rules.return_value = [self.base_rule]
         
-        # 1-for-2 Reverse Split
+        # 1-for-2 Reverse Split (Merge)
+        # Ratio = 300 / 150 = 2.0. Logic: (ratio < 0.7 or ratio > 1.3) -> True -> PASS
         broker_positions = {
             self.hash_val: {
                 'AAPL': {
                     'quantity': 50, # DB has 100
-                    'last_price': 300.0, # DB Avg was 150. Ratio 2.0
+                    'last_price': 300.0, # DB Avg was 150
                     'average_price': 300.0
                 }
             }
@@ -109,6 +110,50 @@ class TestStateIntegrityGuard(unittest.TestCase):
         
         # Should pass
         StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions)
+
+    def test_merge_detection_various_ratios(self):
+        """Test various Merge (Reverse Split) ratios -> Should Pass"""
+        self.mock_db.get_active_trading_rules.return_value = [self.base_rule] # Qty 100, Price 150
+        
+        # Case A: 1-for-3 Merge (Ratio 3.0)
+        # Price 150 -> 450. Qty 100 -> 33.33
+        broker_positions_a = {
+            self.hash_val: {
+                'AAPL': {'quantity': 33.3333, 'last_price': 450.0, 'average_price': 450.0}
+            }
+        }
+        StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions_a)
+
+        # Case B: 1-for-10 Merge (Ratio 10.0)
+        # Price 150 -> 1500. Qty 100 -> 10
+        broker_positions_b = {
+            self.hash_val: {
+                'AAPL': {'quantity': 10, 'last_price': 1500.0, 'average_price': 1500.0}
+            }
+        }
+        StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions_b)
+
+    def test_split_detection_various_ratios(self):
+        """Test various Split ratios -> Should Pass"""
+        self.mock_db.get_active_trading_rules.return_value = [self.base_rule] # Qty 100, Price 150
+        
+        # Case A: 3-for-1 Split (Ratio 0.33)
+        # Price 150 -> 50. Qty 100 -> 300
+        broker_positions_a = {
+            self.hash_val: {
+                'AAPL': {'quantity': 300, 'last_price': 50.0, 'average_price': 50.0}
+            }
+        }
+        StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions_a)
+
+        # Case B: 10-for-1 Split (Ratio 0.1)
+        # Price 150 -> 15. Qty 100 -> 1000
+        broker_positions_b = {
+            self.hash_val: {
+                'AAPL': {'quantity': 1000, 'last_price': 15.0, 'average_price': 15.0}
+            }
+        }
+        StateIntegrityGuard.check_integrity(self.mock_db, self.mock_manager, self.user_id, broker_positions_b)
 
     def test_new_position_pass(self):
         """DB has 0, Broker has shares -> Should Pass (Safe)"""

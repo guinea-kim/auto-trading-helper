@@ -155,16 +155,14 @@ class StateIntegrityGuard:
                  # Manual Trade: Price is roughly same (Ratio ~ 1.0), Qty changed.
                  # Split: Price changed significantly (Ratio ~ 0.5, 0.1, etc).
                  
-                 # We assume normal volatility is within +/- 30% (0.7 ~ 1.3)
-                 # If ratio is outside 0.7~1.3, it is likely a Split or massive crash (which pauses trading anyway).
                  # If ratio is INSIDE 0.7~1.3, and Qty changed => MANUAL TRADE.
                  
-                 is_likely_split = (ratio < 0.7 or ratio > 1.3)
+                 is_likely_split_and_merge = (ratio < 0.7 or ratio > 1.3)
                  
-                 if not is_likely_split:
-                     issues.append(f"CRITICAL: Quantity Mismatch without Split Signature. {stock_name} ({symbol}): DB:{db_qty} vs Real:{broker_qty}. Price Ratio:{ratio:.2f} (Not a split). Likely Manual Trade.")
+                 if not is_likely_split_and_merge:
+                     issues.append(f"CRITICAL: Quantity Mismatch without Split Signature. {stock_name} ({symbol}): DB:{db_qty} vs Real:{broker_qty}. Price Ratio:{ratio:.2f} (Not a split/merge). Likely Manual Trade.")
                  else:
-                     # Likely a split, let the existing sync_split_adjustments logic handle it.
+                     # Likely a split or merge, let the existing safe sync logic handle it.
                      pass
             else:
                 # DB Avg Price is 0, but we have quantity? Data anomaly.

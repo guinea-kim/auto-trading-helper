@@ -23,19 +23,37 @@ def backup_databases(stage, logger=None):
         getattr(secret, 'db_name_kr', None)
     ]
     
+    
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     backup_dir = "records"
     os.makedirs(backup_dir, exist_ok=True)
     
     env = os.environ.copy()
     env['MYSQL_PWD'] = secret.db_passwd
-    
+
+    import shutil
+    mysqldump_cmd = "mysqldump"
+    # Auto-detect mysqldump if not in PATH
+    if not shutil.which(mysqldump_cmd):
+        possible_paths = [
+            "/opt/homebrew/bin/mysqldump", 
+            "/usr/local/bin/mysqldump", 
+            "/usr/bin/mysqldump",
+            "/usr/local/opt/mysql-client/bin/mysqldump",
+            "/usr/local/opt/mysql@8.4/bin/mysqldump",
+            "/opt/homebrew/opt/mysql-client/bin/mysqldump"
+        ]
+        for path in possible_paths:
+            if os.path.exists(path):
+                mysqldump_cmd = path
+                break
+
     for db_name in targets:
         if not db_name: continue
         
         filename = f"{backup_dir}/backup_{db_name}_{timestamp}_{stage}.sql"
         cmd = [
-            "mysqldump",
+            mysqldump_cmd,
             "-h", secret.db_ip,
             "-P", str(secret.db_port),
             "-u", secret.db_id,
@@ -47,11 +65,23 @@ def backup_databases(stage, logger=None):
         try:
             with open(filename, 'w') as f:
                 subprocess.run(cmd, stdout=f, stderr=subprocess.PIPE, env=env, check=True)
-            logger.info(f"Database backup successful: {filename}")
+            
+            # Verify file size (Empty file means failure usually, as dump has headers)
+            if os.path.getsize(filename) == 0:
+                logger.error(f"Backup created but empty: {filename}")
+                if os.path.exists(filename):
+                    os.remove(filename)  # Clean up empty file
+            else:
+                logger.info(f"Database backup successful: {filename}")
+
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to backup {db_name}: {e.stderr.decode()}")
+            if os.path.exists(filename):
+                os.remove(filename) # Clean up empty/partial file
         except Exception as e:
             logger.error(f"Error during backup of {db_name}: {e}")
+            if os.path.exists(filename):
+                os.remove(filename) # Clean up empty file
 
 class AsyncDataRecorder:
 

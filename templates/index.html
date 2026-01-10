@@ -336,7 +336,7 @@
                         </td>
                         <td class="text-start">{{ account.description }}</td>
                         <td class="text-start">
-                            <form action="{{ url_for('update_account_type') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('main.update_account_type') }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="hidden" name="account_id" value="{{ account.id }}">
                                 <select name="account_type" class="form-select form-select-sm" style="width: 110px;"
@@ -356,7 +356,7 @@
                             account.total_value else "$0.00" }}</td>
                         <td class="text-end">
                             {% if current_market == 'kr' %}
-                            <form action="{{ url_for('update_account_contribution') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('main.update_account_contribution') }}" method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="hidden" name="account_id" value="{{ account.id }}">
                                 <div class="input-group input-group-sm justify-content-end">
@@ -460,14 +460,14 @@
                         {% endif %}
                         <td class="text-end">
                             <div class="d-flex align-items-center justify-content-end">
-                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_value') }}"
+                                <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_value') }}"
                                     method="post" class="d-inline me-1">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <input type="number" step="0.01"
                                         class="form-control form-control-sm editable-field font-monospace text-end"
                                         name="value" value="{{ rule.limit_value }}" title="한계값" style="width: 100px;">
                                 </form>
-                                <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='limit_type') }}"
+                                <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_type') }}"
                                     method="post" class="d-inline">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <select name="value" class="form-select form-select-sm"
@@ -487,7 +487,7 @@
                             </div>
                         </td>
                         <td class="text-end">
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='target_amount') }}"
+                            <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='target_amount') }}"
                                 method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="number"
@@ -499,7 +499,7 @@
                             %}BUY{% else %}{{
                             rule.trade_action }}{% endif %}</td>
                         <td class="text-end">
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='daily_money') }}"
+                            <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='daily_money') }}"
                                 method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="number" step="0.01"
@@ -508,7 +508,7 @@
                             </form>
                         </td>
                         <td class="text-center">
-                            <form action="{{ url_for('update_rule_field', rule_id=rule.id, field='cash_only') }}"
+                            <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='cash_only') }}"
                                 method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="checkbox" class="form-check-input" name="value" value="1" {% if
@@ -547,7 +547,7 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post"
+                            <form action="{{ url_for('main.update_rule_status', rule_id=rule.id) }}" method="post"
                                 class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -643,7 +643,7 @@
                             {% endif %}
                         </td>
                         <td class="text-center">
-                            <form action="{{ url_for('update_rule_status', rule_id=rule.id) }}" method="post"
+                            <form action="{{ url_for('main.update_rule_status', rule_id=rule.id) }}" method="post"
                                 class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <select name="status" class="form-select form-select-sm" onchange="this.form.submit()">
@@ -667,7 +667,7 @@
             <div class="col-md-6">
                 <div class="form-container">
                     <h3>계정 추가</h3>
-                    <form action="{{ url_for('add_account') }}" method="post">
+                    <form action="{{ url_for('main.add_account') }}" method="post">
                         <input type="hidden" name="market" value="{{ current_market }}">
                         <div class="mb-3">
                             <label for="user_id" class="form-label">사용자 ID</label>
@@ -690,7 +690,7 @@
             <div class="col-md-6">
                 <div class="form-container">
                     <h3>거래 규칙 추가</h3>
-                    <form action="{{ url_for('add_trading_rule') }}" method="post">
+                    <form action="{{ url_for('main.add_trading_rule') }}" method="post">
                         <input type="hidden" name="market" value="{{ current_market }}">
                         <div class="mb-3">
                             <label for="account_id" class="form-label">계정 선택</label>

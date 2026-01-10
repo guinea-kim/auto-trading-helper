@@ -329,7 +329,11 @@
                     <tr>
                         <td>{{ account.id }}</td>
                         <td>{{ account.user_id }}</td>
-                        <td>{{ account.account_number }}</td>
+                        <td>
+                            <span title="{{ account.account_number }}">
+                                ****{{ account.account_number[-3:] }}
+                            </span>
+                        </td>
                         <td>{{ account.description }}</td>
                         <td>
                             <form action="{{ url_for('update_account_type') }}" method="post" class="d-inline">

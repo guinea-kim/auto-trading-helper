@@ -10,7 +10,7 @@ import argparse
 from strategies.schwab_strategy import SchwabMarketStrategy
 from strategies.korea_strategy import KoreaMarketStrategy
 from library.clock import Clock
-
+from library.trade_calculator import TradeCalculator
 class OrderType(IntEnum):
     SELL = 0
     BUY = 1
@@ -593,26 +593,35 @@ Order At {self.clock.now().strftime('%Y-%m-%d %H:%M:%S')}
         except KeyError:
             self.logger.error(f"Missing position data for account {rule['hash_value']}. Skipping sell rule {rule['id']}.")
             return
-        today_trading_money = self.db_handler.get_trade_today(rule['id'])
 
-        # 매도할 최대 수량 계산
-        max_shares = min(
-            (int(rule['daily_money']) - today_trading_money)// last_price,
-            int(current_holding) - int(rule['target_amount'])
+        # 1. Calculate Sell Decision
+        today_traded_money = self.db_handler.get_trade_today(rule['id'])
+        
+        decision = TradeCalculator.calculate_sell_quantity(
+            target_amount=int(rule['target_amount']),
+            current_holding=int(current_holding),
+            daily_money_limit=float(rule['daily_money']),
+            today_traded_money=today_traded_money,
+            current_price=last_price
         )
 
-        if max_shares <= 0:
-            self.logger.info(f"No shares to sell for rule {rule['id']} ({symbol})")
+        if decision.quantity <= 0:
+            self.logger.info(f"No shares to sell for rule {rule['id']} ({symbol}): {decision.limit_reason}")
             self.logger.debug(
-                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
+                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'])/last_price:.1f}, Today's trades: {today_traded_money}")
             return
 
-        self.logger.info(f"Attempting to sell {max_shares} shares of {symbol} at ${last_price}")
-        if self.place_sell_order(rule, max_shares, last_price, current_holding):
-            if current_holding - max_shares <= rule['target_amount']:
-                self.logger.info(
-                    f"Rule {rule['id']} completed after selling {max_shares} shares. New holding: {current_holding - max_shares}")
-                self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
+        # 2. Execute Sell
+        self.logger.info(f"Attempting to sell {decision.quantity} shares of {symbol} at ${last_price} (Reason: {decision.limit_reason})")
+        
+        if self.place_sell_order(rule, decision.quantity, last_price, current_holding):
+            # Check if target reached
+            # Recalculate holding after sell
+            remaining_holding = current_holding - decision.quantity
+            if remaining_holding <= rule['target_amount']:
+                 self.logger.info(
+                     f"Rule {rule['id']} completed after selling {decision.quantity} shares. New holding: {remaining_holding}")
+                 self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
 
     def buy_stock(self, manager, rule, last_price, symbol):
         try:
@@ -620,55 +629,89 @@ Order At {self.clock.now().strftime('%Y-%m-%d %H:%M:%S')}
         except KeyError:
             self.logger.error(f"Missing position data for account {rule['hash_value']}. Skipping buy rule {rule['id']}.")
             return
-        today_trading_money = self.db_handler.get_trade_today(rule['id'])
-
-        # 매수할 최대 수량 계산
-        max_shares = min(
-            (int(rule['daily_money']) - today_trading_money)// last_price,
-            int(rule['target_amount']) - int(current_holding)
-        )
-
-        if max_shares <= 0:
-            self.logger.info(f"No shares to buy for rule {rule['id']} ({symbol})")
-            self.logger.debug(
-                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'] / last_price)}, Today's trades: {today_trading_money}")
-            return
-
-        required_cash = max_shares * last_price
+        
+        # 1. Prepare Data
+        today_traded_money = self.db_handler.get_trade_today(rule['id'])
         current_cash = manager.get_cash(rule['hash_value'])
-        self.logger.info(
-            f"Buy attempt for {symbol}: Shares: {max_shares}, Required cash: ${required_cash:.2f}, Available cash: ${current_cash:.2f}")
-
-        # 돈이 부족하면 채권매도 시도 (cash_only가 False일 때만)
-        if not rule['cash_only'] and required_cash > current_cash:
-            self.logger.info(f"Insufficient cash. Attempting to sell ETFs for ${required_cash - current_cash:.2f}")
+        
+        # 2. First Pass: Calculate with Policy (Flexible Mode if allowed)
+        # If cash_only is False, we ask "What would I buy if I had infinite cash?" to find shortfall.
+        # But wait, the calculator logic handles 'cash_only' flag.
+        # If cash_only=False, it returns shortfall.
+        
+        decision = TradeCalculator.calculate_buy_quantity(
+            target_amount=int(rule['target_amount']),
+            current_holding=int(current_holding),
+            daily_money_limit=float(rule['daily_money']),
+            today_traded_money=today_traded_money,
+            current_price=last_price,
+            available_cash=current_cash,
+            cash_only=rule['cash_only']
+        )
+        
+        # 3. Handle Shortfall (ETF Sell)
+        if decision.shortfall > 0:
+            self.logger.info(f"Buy plan requires more cash. Shortfall: ${decision.shortfall:.2f}. Attempting ETF sell...")
+            
+            # Executing side effect: Sell ETF
             order = manager.sell_etf_for_cash(
                 rule['hash_value'],
-                required_cash - current_cash,
+                decision.shortfall,
                 self.positions_by_account[rule['hash_value']]
             )
+            
             if order and order.is_success:
-                self.logger.info("ETF sold successfully for cash")
+                self.logger.info("ETF sold successfully. Updating cash balance...")
+                # Update cash after sell
                 current_cash = manager.get_cash(rule['hash_value'])
+                
+                # 4. Second Pass: Re-calculate with new cash (Strict Mode)
+                # Now we must strictly respect the cash we have.
+                decision = TradeCalculator.calculate_buy_quantity(
+                    target_amount=int(rule['target_amount']),
+                    current_holding=int(current_holding),
+                    daily_money_limit=float(rule['daily_money']),
+                    today_traded_money=today_traded_money,
+                    current_price=last_price,
+                    available_cash=current_cash,
+                    cash_only=True # STRICT NOW
+                )
             else:
-                self.logger.warning("Failed to sell ETF for cash")
+                self.logger.warning("Failed to sell ETF. Proceeding with original available cash.")
+                # If sell failed, we must re-calculate strictly with original cash.
+                # Or just rely on the fact that if we proceed, we might fail order?
+                # Better to re-calculate strictly with old cash to avoid order failure.
+                 
+                decision = TradeCalculator.calculate_buy_quantity(
+                    target_amount=int(rule['target_amount']),
+                    current_holding=int(current_holding),
+                    daily_money_limit=float(rule['daily_money']),
+                    today_traded_money=today_traded_money,
+                    current_price=last_price,
+                    available_cash=current_cash,
+                    cash_only=True # Fallback to strict
+                )
 
-        # 돈이 부족한 만큼 수량 조정해서 매수
-        max_shares = min(max_shares, int(current_cash / last_price))
-        if max_shares > 0:
-            self.logger.info(f"Attempting to buy {max_shares} shares of {symbol} at ${last_price}")
-            if self.place_buy_order(rule, max_shares, last_price, current_cash):
-                if rule['limit_type'] in ['weekly', 'monthly']:
-                    # 정기 매수의 경우 매수 완료 후 PROCESSED로 변경
-                    self.db_handler.update_rule_status(rule['id'], 'PROCESSED')
-                elif current_holding + max_shares >= rule['target_amount']:
-                    # 일반 매수의 경우 목표 수량 달성 시 COMPLETED로 변경
-                    self.logger.info(
-                        f"Rule {rule['id']} completed after buying {max_shares} shares. New holding: {current_holding + max_shares}")
-                    self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
-        else:
-            self.logger.warning(
-                f"Insufficient funds to buy {symbol}. Required: ${required_cash:.2f}, Available: ${current_cash:.2f}")
+        # 5. Check Final Decision
+        if decision.quantity <= 0:
+            self.logger.info(f"No shares to buy for rule {rule['id']} ({symbol}): {decision.limit_reason}")
+            self.logger.debug(
+                f"Current holding: {current_holding}, Target: {rule['target_amount']}, Daily limit: {int(rule['daily_money'])/last_price:.1f}, Today's trades: {today_traded_money}")
+            return
+
+        # 6. Execute Buy
+        self.logger.info(
+            f"Attempting to buy {decision.quantity} shares of {symbol} at ${last_price} "
+            f"(Required: ${decision.required_cash:.2f}, Cash: ${current_cash:.2f})"
+        )
+
+        if self.place_buy_order(rule, decision.quantity, last_price, current_cash):
+            if rule['limit_type'] in ['weekly', 'monthly']:
+                self.db_handler.update_rule_status(rule['id'], 'PROCESSED')
+            elif int(current_holding) + decision.quantity >= int(rule['target_amount']):
+                self.logger.info(
+                    f"Rule {rule['id']} completed after buying {decision.quantity} shares. New holding: {int(current_holding) + decision.quantity}")
+                self.db_handler.update_rule_status(rule['id'], 'COMPLETED')
 
 
 if __name__ == "__main__":

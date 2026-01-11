@@ -650,7 +650,7 @@ Order At {self.clock.now().strftime('%Y-%m-%d %H:%M:%S')}
         )
         
         # 3. Handle Shortfall (ETF Sell)
-        if decision.shortfall > 0 and not rule['cash_only']:
+        if decision.shortfall > 0:
             self.logger.info(f"Buy plan requires more cash. Shortfall: ${decision.shortfall:.2f}. Attempting ETF sell...")
             
             # Executing side effect: Sell ETF

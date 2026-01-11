@@ -326,7 +326,13 @@
                                 ({{ "{:+,.2f}".format(allocation.diff_value|float) }})
                             </small>
                             {% endif %}
-                            <span>{{ "${:,.2f}".format(allocation.total_value|float) }}</span>
+                            <span>
+                                {% if current_market == 'kr' %}
+                                {{ "₩{:,.0f}".format(allocation.total_value|float) }}
+                                {% else %}
+                                {{ "${:,.2f}".format(allocation.total_value|float) }}
+                                {% endif %}
+                            </span>
                         </td>
                         <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
                             {% if allocation.diff_percentage and allocation.diff_percentage != 0 %}
@@ -410,10 +416,20 @@
                                 </select>
                             </form>
                         </td>
-                        <td class="text-end font-monospace">{{ "${:,.2f}".format(account.cash_balance|float) if
-                            account.cash_balance else "$0" }}</td>
-                        <td class="text-end font-monospace">{{ "${:,.2f}".format(account.total_value|float) if
-                            account.total_value else "$0.00" }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(account.cash_balance|float) if account.cash_balance else "₩0" }}
+                            {% else %}
+                            {{ "${:,.2f}".format(account.cash_balance|float) if account.cash_balance else "$0.00" }}
+                            {% endif %}
+                        </td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(account.total_value|float) if account.total_value else "₩0" }}
+                            {% else %}
+                            {{ "${:,.2f}".format(account.total_value|float) if account.total_value else "$0.00" }}
+                            {% endif %}
+                        </td>
                         <td class="text-end">
                             {% if current_market == 'kr' %}
                             <form action="{{ url_for('main.update_account_contribution') }}" method="post" class="d-inline">
@@ -581,9 +597,21 @@
                                 {{ rule.status }}
                             </span>
                         </td>
-                        <td class="text-end font-monospace">{{ rule.average_price }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(rule.average_price|float) }}
+                            {% else %}
+                            {{ "${:,.2f}".format(rule.average_price|float) }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">{{ rule.current_holding }}</td>
-                        <td class="text-end font-monospace">{{ rule.last_price }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(rule.last_price|float) }}
+                            {% else %}
+                            {{ "${:,.2f}".format(rule.last_price|float) }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">
                             {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
                             {% set profit_percent = ((rule.last_price - rule.average_price) / rule.average_price *
@@ -664,7 +692,13 @@
                             %}BUY{%
                             else %}{{
                             rule.trade_action }}{% endif %}</td>
-                        <td class="text-end font-monospace">{{ rule.daily_money }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(rule.daily_money|float) }}
+                            {% else %}
+                            {{ "${:,.2f}".format(rule.daily_money|float) }}
+                            {% endif %}
+                        </td>
                         <td class="text-center">
                             <input type="checkbox" class="form-check-input" disabled {% if rule.cash_only %}checked{%
                                 endif %}>
@@ -675,9 +709,21 @@
                                 {{ rule.status }}
                             </span>
                         </td>
-                        <td class="text-end font-monospace">{{ rule.average_price }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(rule.average_price|float) }}
+                            {% else %}
+                            {{ "${:,.2f}".format(rule.average_price|float) }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">{{ rule.current_holding }}</td>
-                        <td class="text-end font-monospace">{{ rule.last_price }}</td>
+                        <td class="text-end font-monospace">
+                            {% if current_market == 'kr' %}
+                            {{ "₩{:,.0f}".format(rule.last_price|float) }}
+                            {% else %}
+                            {{ "${:,.2f}".format(rule.last_price|float) }}
+                            {% endif %}
+                        </td>
                         <td class="text-end font-monospace">
                             {% if rule.average_price and rule.last_price and rule.average_price > 0 %}
                             {% set profit_percent = ((rule.last_price - rule.average_price) /

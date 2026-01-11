@@ -149,20 +149,24 @@
             color: #198754;
             opacity: 0.6;
         }
+
         .negative-profit-soft {
             color: #dc3545;
             opacity: 0.6;
         }
+
         .positive-profit-bold {
             color: #198754;
             opacity: 1.0;
             font-weight: 700;
         }
+
         .negative-profit-bold {
             color: #dc3545;
             opacity: 1.0;
             font-weight: 700;
         }
+
         .neutral-profit {
             color: #6c757d;
             opacity: 0.5;
@@ -250,7 +254,7 @@
         </div>
 
         <div id="react-root" class="mb-4"></div>
-        <script src="{{ url_for('static', filename='js/calendar.bundle.js') }}?v=2"></script>
+        <script src="{{ url_for('static', filename='js/app.bundle.js') }}?v=3"></script>
 
         <!-- Daily Total Value Chart -->
         {% if daily_total_values %}
@@ -300,47 +304,61 @@
                             {% if allocation.total_quantity %}
                             {% if allocation.diff_quantity and allocation.diff_quantity != 0 %}
                             {% if is_significant %}
-                                <small class="{% if allocation.diff_quantity > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
-                            {% else %}
-                                <small class="{% if allocation.diff_quantity > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
-                            {% endif %}
-                                ({{ "{:+,.0f}".format(allocation.diff_quantity|float) if allocation.diff_quantity % 1 == 0
-                                else "{:+,.4f}".format(allocation.diff_quantity|float) }})
-                            </small>
-                            {% endif %}
-                            <span>
-                                {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity % 1 == 0
-                                else "{:,.4f}".format(allocation.total_quantity|float) }}
-                            </span>
-                            {% else %}
-                            -
-                            {% endif %}
+                            <small
+                                class="{% if allocation.diff_quantity > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1"
+                                style="font-size: 0.75em;">
+                                {% else %}
+                                <small
+                                    class="{% if allocation.diff_quantity > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1"
+                                    style="font-size: 0.75em;">
+                                    {% endif %}
+                                    ({{ "{:+,.0f}".format(allocation.diff_quantity|float) if allocation.diff_quantity %
+                                    1 == 0
+                                    else "{:+,.4f}".format(allocation.diff_quantity|float) }})
+                                </small>
+                                {% endif %}
+                                <span>
+                                    {{ "{:,.0f}".format(allocation.total_quantity|float) if allocation.total_quantity %
+                                    1 == 0
+                                    else "{:,.4f}".format(allocation.total_quantity|float) }}
+                                </span>
+                                {% else %}
+                                -
+                                {% endif %}
                         </td>
                         <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
                             {% if allocation.diff_value and allocation.diff_value != 0 %}
                             {% if is_significant %}
-                                <small class="{% if allocation.diff_value > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
-                            {% else %}
-                                <small class="{% if allocation.diff_value > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
-                            {% endif %}
-                                ({{ "{:+,.2f}".format(allocation.diff_value|float) }})
-                            </small>
-                            {% endif %}
-                            <span>{{ "${:,.2f}".format(allocation.total_value|float) }}</span>
+                            <small
+                                class="{% if allocation.diff_value > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1"
+                                style="font-size: 0.75em;">
+                                {% else %}
+                                <small
+                                    class="{% if allocation.diff_value > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1"
+                                    style="font-size: 0.75em;">
+                                    {% endif %}
+                                    ({{ "{:+,.2f}".format(allocation.diff_value|float) }})
+                                </small>
+                                {% endif %}
+                                <span>{{ "${:,.2f}".format(allocation.total_value|float) }}</span>
                         </td>
                         <td class="text-end font-monospace ps-4" style="white-space: nowrap;">
                             {% if allocation.diff_percentage and allocation.diff_percentage != 0 %}
                             {% if is_significant %}
-                                <small class="{% if allocation.diff_percentage > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1" style="font-size: 0.75em;">
-                            {% elif allocation.diff_percentage|abs <= 0.01 %}
-                                <small class="neutral-profit me-1" style="font-size: 0.75em;">
-                            {% else %}
-                                <small class="{% if allocation.diff_percentage > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1" style="font-size: 0.75em;">
-                            {% endif %}
-                                ({{ "{:+.2f}%".format(allocation.diff_percentage|float) }})
-                            </small>
-                            {% endif %}
-                            <span>{{ "{:.2f}%".format(allocation.percentage|float) }}</span>
+                            <small
+                                class="{% if allocation.diff_percentage > 0 %}positive-profit-bold{% else %}negative-profit-bold{% endif %} me-1"
+                                style="font-size: 0.75em;">
+                                {% elif allocation.diff_percentage|abs <= 0.01 %} <small class="neutral-profit me-1"
+                                    style="font-size: 0.75em;">
+                                    {% else %}
+                                    <small
+                                        class="{% if allocation.diff_percentage > 0 %}positive-profit-soft{% else %}negative-profit-soft{% endif %} me-1"
+                                        style="font-size: 0.75em;">
+                                        {% endif %}
+                                        ({{ "{:+.2f}%".format(allocation.diff_percentage|float) }})
+                                    </small>
+                                    {% endif %}
+                                    <span>{{ "{:.2f}%".format(allocation.percentage|float) }}</span>
                         </td>
                         <td class="text-center">
                             <div class="progress" style="height: 24px;">
@@ -416,7 +434,8 @@
                             account.total_value else "$0.00" }}</td>
                         <td class="text-end">
                             {% if current_market == 'kr' %}
-                            <form action="{{ url_for('main.update_account_contribution') }}" method="post" class="d-inline">
+                            <form action="{{ url_for('main.update_account_contribution') }}" method="post"
+                                class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="hidden" name="account_id" value="{{ account.id }}">
                                 <div class="input-group input-group-sm justify-content-end">
@@ -520,14 +539,16 @@
                         {% endif %}
                         <td class="text-end">
                             <div class="d-flex align-items-center justify-content-end">
-                                <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_value') }}"
+                                <form
+                                    action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_value') }}"
                                     method="post" class="d-inline me-1">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <input type="number" step="0.01"
                                         class="form-control form-control-sm editable-field font-monospace text-end"
                                         name="value" value="{{ rule.limit_value }}" title="한계값" style="width: 100px;">
                                 </form>
-                                <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_type') }}"
+                                <form
+                                    action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='limit_type') }}"
                                     method="post" class="d-inline">
                                     <input type="hidden" name="market" value="{{ current_market }}">
                                     <select name="value" class="form-select form-select-sm"
@@ -547,7 +568,8 @@
                             </div>
                         </td>
                         <td class="text-end">
-                            <form action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='target_amount') }}"
+                            <form
+                                action="{{ url_for('main.update_rule_field', rule_id=rule.id, field='target_amount') }}"
                                 method="post" class="d-inline">
                                 <input type="hidden" name="market" value="{{ current_market }}">
                                 <input type="number"

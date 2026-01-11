@@ -460,22 +460,6 @@ class DatabaseHandler:
             FROM daily_records
         """
 
-        # 해당 날짜의 모든 total 종목 가져오기 (전체 자금 계산용)
-        total_sql = """
-            SELECT SUM(amount) as total_value
-            FROM daily_records
-            WHERE record_date = :latest_date AND symbol = 'total'
-        """
-
-        # 해당 날짜의 모든 종목별 평가금액 합산 (계좌 상관없이 symbol로 그룹화)
-        consolidated_sql = """
-            SELECT symbol, SUM(amount) as total_value, SUM(quantity) as total_quantity
-            FROM daily_records
-            WHERE record_date = :latest_date AND symbol != 'total'
-            GROUP BY symbol
-            ORDER BY total_value DESC
-        """
-
         with self.engine.connect() as conn:
             # 최신 날짜 조회
             latest_date_result = conn.execute(text(latest_date_sql))
@@ -483,25 +467,119 @@ class DatabaseHandler:
 
             if not latest_date:
                 return None, None
+            
+            # 이전 날짜 찾기 (어제 데이터를 위함)
+            prev_date_sql = """
+                SELECT MAX(record_date) as prev_date 
+                FROM daily_records
+                WHERE record_date < :latest_date
+            """
+            prev_date_result = conn.execute(text(prev_date_sql), {"latest_date": latest_date})
+            prev_date_row = prev_date_result.fetchone()
+            prev_date = prev_date_row.prev_date if prev_date_row else None
 
-            # 전체 자금 조회
-            total_result = conn.execute(text(total_sql), {"latest_date": latest_date})
+            # ---------------------------------------------------------
+            # 1. 최신 데이터 조회
+            # ---------------------------------------------------------
+
+            # 해당 날짜의 모든 total 종목 가져오기 (전체 자금 계산용)
+            total_sql = """
+                SELECT SUM(amount) as total_value
+                FROM daily_records
+                WHERE record_date = :target_date AND symbol = 'total'
+            """
+            
+            # 해당 날짜의 모든 종목별 평가금액 합산 (계좌 상관없이 symbol로 그룹화)
+            consolidated_sql = """
+                SELECT symbol, SUM(amount) as total_value, SUM(quantity) as total_quantity
+                FROM daily_records
+                WHERE record_date = :target_date AND symbol != 'total'
+                GROUP BY symbol
+                ORDER BY total_value DESC
+            """
+
+            # 전체 자금 조회 (최신)
+            total_result = conn.execute(text(total_sql), {"target_date": latest_date})
             total_value = total_result.fetchone().total_value
 
             if not total_value:
                 return None, None
+            
+            total_value = float(total_value)
 
-            # 종목별 합산 데이터 조회
-            consolidated_result = conn.execute(text(consolidated_sql), {"latest_date": latest_date})
-
-            # 종목별 데이터 및 비중 계산
-            allocations = []
+            # 종목별 합산 데이터 조회 (최신)
+            consolidated_result = conn.execute(text(consolidated_sql), {"target_date": latest_date})
+            
+            # 딕셔너리 형태로 변환하여 쉽게 접근
+            current_data = {}
             for row in consolidated_result:
-                allocation = dict(row._mapping)
-                allocation['percentage'] = (allocation['total_value'] / total_value) * 100
-                if 'total_quantity' in allocation and isinstance(allocation['total_quantity'], decimal.Decimal):
-                    allocation['total_quantity'] = float(allocation['total_quantity'])
+                d = dict(row._mapping)
+                if 'total_quantity' in d and isinstance(d['total_quantity'], decimal.Decimal):
+                    d['total_quantity'] = float(d['total_quantity'])
+                if 'total_value' in d and isinstance(d['total_value'], decimal.Decimal):
+                    d['total_value'] = float(d['total_value'])
+                current_data[d['symbol']] = d
+            
+            # ---------------------------------------------------------
+            # 2. 이전 데이터 조회 (데이터가 있을 경우에만)
+            # ---------------------------------------------------------
+            prev_data = {}
+            prev_total_value = 0
+            
+            if prev_date:
+                # 전체 자금 조회 (이전)
+                pt_result = conn.execute(text(total_sql), {"target_date": prev_date})
+                pt_row = pt_result.fetchone()
+                if pt_row and pt_row.total_value:
+                    prev_total_value = float(pt_row.total_value)
+                
+                # 종목별 합산 데이터 조회 (이전)
+                pc_result = conn.execute(text(consolidated_sql), {"target_date": prev_date})
+                for row in pc_result:
+                    d = dict(row._mapping)
+                    if 'total_quantity' in d and isinstance(d['total_quantity'], decimal.Decimal):
+                        d['total_quantity'] = float(d['total_quantity'])
+                    if 'total_value' in d and isinstance(d['total_value'], decimal.Decimal):
+                        d['total_value'] = float(d['total_value'])
+                    prev_data[d['symbol']] = d
+
+            # ---------------------------------------------------------
+            # 3. 데이터 병합 및 변화량 계산
+            # ---------------------------------------------------------
+            allocations = []
+            
+            # 현재 데이터 순회
+            for symbol, curr in current_data.items():
+                allocation = curr.copy()
+                
+                # 현재 비중 계산
+                curr_percentage = (allocation['total_value'] / total_value) * 100
+                allocation['percentage'] = curr_percentage
+                
+                # 이전 데이터와 비교
+                if prev_date and symbol in prev_data:
+                    prev = prev_data[symbol]
+                    prev_percentage = (prev['total_value'] / prev_total_value) * 100 if prev_total_value > 0 else 0
+                    
+                    allocation['diff_quantity'] = (allocation['total_quantity'] or 0) - (prev['total_quantity'] or 0)
+                    allocation['diff_value'] = float(allocation['total_value']) - float(prev['total_value'])
+                    allocation['diff_percentage'] = curr_percentage - prev_percentage
+                else:
+                    # 이전 데이터가 없으면 변화량은 0 또는 신규 진입으로 볼 수 있음 (여기선 0이나 None 처리)
+                    # 신규 진입인 경우 변화량 = 현재값
+                    if prev_date: # 이전 날짜 데이터는 있는데 이 종목만 없는 경우 (New Entry)
+                        allocation['diff_quantity'] = allocation.get('total_quantity', 0)
+                        allocation['diff_value'] = float(allocation['total_value'])
+                        allocation['diff_percentage'] = curr_percentage
+                    else: # 아예 이전 날짜 기록이 없는 경우
+                        allocation['diff_quantity'] = 0
+                        allocation['diff_value'] = 0
+                        allocation['diff_percentage'] = 0
+
                 allocations.append(allocation)
+
+            # 정렬 (비중 내림차순)
+            allocations.sort(key=lambda x: x['percentage'], reverse=True)
 
             return allocations, total_value
 

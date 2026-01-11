@@ -1,5 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, jsonify
 from app_handlers import us_db_handler, kr_db_handler
+from library.crontab_service import CrontabService
+
+crontab_service = CrontabService()
 
 bp = Blueprint('main', __name__)
 
@@ -393,3 +396,28 @@ def update_rule_field(rule_id, field):
     except Exception as e:
         flash(f"Error: {e}", "danger")
     return redirect(url_for('main.index', market=market))
+
+
+# --- Crontab Dashboard Routes ---
+
+@bp.route('/crontab')
+@bp.route('/crontab/job/<int:job_id>')
+def crontab_dashboard(job_id=None):
+    return render_template('crontab.html')
+
+@bp.route('/api/crontab/jobs', methods=['GET'])
+def get_crontab_jobs():
+    jobs = crontab_service.parse_crontab_md()
+    return jsonify({"jobs": jobs})
+
+@bp.route('/api/crontab/run/<int:job_id>', methods=['POST'])
+def run_crontab_job(job_id):
+    # MOCK EXECUTION
+    result = crontab_service.mock_run_job(job_id)
+    return jsonify(result)
+
+@bp.route('/api/crontab/kill/<int:job_id>', methods=['POST'])
+def kill_crontab_job(job_id):
+    # MOCK EXECUTION
+    result = crontab_service.mock_kill_job(job_id)
+    return jsonify(result)

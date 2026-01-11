@@ -6,7 +6,7 @@
   "scripts": {
     "start": "node script.js",
     "refresh": "node refreshToken.js",
-    "build-react": "esbuild frontend/index.jsx --bundle --outfile=static/js/calendar.bundle.js --minify --loader:.js=jsx --loader:.jsx=jsx"
+    "build-react": "esbuild frontend/index.jsx --bundle --outfile=static/js/app.bundle.js --minify --loader:.js=jsx --loader:.jsx=jsx"
   },
   "dependencies": {
     "axios": "^1.6.0",
